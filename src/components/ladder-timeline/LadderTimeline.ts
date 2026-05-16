@@ -301,7 +301,7 @@ export class LadderTimeline {
     return {
       minYear:  this.minYear,
       maxYear:  this.maxYear,
-      minScale: finest?.id   ?? 'ns',
+      minScale: finest?.id   ?? 'ms',
       maxScale: coarsest?.id ?? 'Ga',
     };
   }

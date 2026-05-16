@@ -19,7 +19,7 @@ export type ScaleId =
   | 'millennium' | 'century' | 'decade'
   | 'year' | 'month' | 'week' | 'day'
   | 'hour' | 'minute' | 'second'
-  | 'ms' | 'us' | 'ns';
+  | 'ms';
 
 export interface ScaleItem {
   /** Identité canonique de l'item — décimal year de son début */
@@ -445,7 +445,7 @@ const secondScale = subDayScale('second', 'Seconde', 1000,
 
 // ─── Sub-second scales (ms / μs / ns) — décoratif ─────────────────────────────
 
-function subSecondScale(id: ScaleId, label: string, unit: 'ms' | 'µs' | 'ns', divisor: number): Scale {
+function subSecondScale(id: ScaleId, label: string, unit: 'ms', divisor: number): Scale {
   // step en années : 1 unit = (1 / divisor) seconde / secondes-par-an
   const stepYears = (1 / divisor) / (365.25 * 24 * 3600);
   return {
@@ -473,8 +473,6 @@ function subSecondScale(id: ScaleId, label: string, unit: 'ms' | 'µs' | 'ns', d
 }
 
 const msScale = subSecondScale('ms', 'Milliseconde', 'ms', 1000);
-const usScale = subSecondScale('us', 'Microseconde', 'µs', 1_000_000);
-const nsScale = subSecondScale('ns', 'Nanoseconde',  'ns', 1_000_000_000);
 
 // ─── Registry ────────────────────────────────────────────────────────────────
 
@@ -495,8 +493,6 @@ export const SCALES: Scale[] = [
   minuteScale,
   secondScale,
   msScale,
-  usScale,
-  nsScale,
 ];
 
 const SCALE_BY_ID: Record<ScaleId, Scale> = SCALES.reduce((acc, s) => {

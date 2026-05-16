@@ -151,7 +151,7 @@ describe('Year bounds', () => {
 describe('Scale bounds', () => {
   it('setScale is clamped to finest allowed (minScale)', () => {
     const t = new LadderTimeline({ container, minScale: 'day' });
-    t.setScale('ns');
+    t.setScale('ms');
     expect(t.getScale()).toBe('day'); // can't go below day
   });
 
@@ -163,10 +163,10 @@ describe('Scale bounds', () => {
 
   it('initial scale is clamped if out of range', () => {
     const t = new LadderTimeline({
-      container, scale: 'ns',
+      container, scale: 'ms',
       minScale: 'day', maxScale: 'year',
     });
-    // scale 'ns' is finer than minScale 'day' → clamped up to 'day'
+    // scale 'ms' is finer than minScale 'day' → clamped up to 'day'
     expect(t.getScale()).toBe('day');
   });
 });

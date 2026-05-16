@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
     theme: 'auto',
     storageKey: 'lt-demo',
     // ── Démo : bornes ─────────────────────────────────────────────────────────
-    minScale: 'us',
+    minScale: 'ms',
     maxScale: 'millennium',
     minDate: new Date(1900, 0, 1),
     maxDate: new Date(2100, 11, 31),
@@ -82,8 +82,6 @@ document.addEventListener('DOMContentLoaded', () => {
     { id: 'minute',     label: 'Minute' },
     { id: 'second',     label: 'Seconde' },
     { id: 'ms',         label: 'Milliseconde' },
-    { id: 'us',         label: 'Microseconde' },
-    { id: 'ns',         label: 'Nanoseconde' },
   ];
 
   const scaleLabelEl = document.getElementById('scale-label');

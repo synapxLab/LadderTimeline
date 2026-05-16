@@ -15,14 +15,14 @@ import {
 // ─── Registry ────────────────────────────────────────────────────────────────
 
 describe('Scale registry', () => {
-  it('exposes exactly 18 scales', () => {
-    expect(SCALE_COUNT).toBe(18);
-    expect(SCALES).toHaveLength(18);
+  it('exposes exactly 16 scales', () => {
+    expect(SCALE_COUNT).toBe(16);
+    expect(SCALES).toHaveLength(16);
   });
 
-  it('orders scales from coarsest (Ga, idx 0) to finest (ns, idx 17)', () => {
+  it('orders scales from coarsest (Ga, idx 0) to finest (ms, idx 15)', () => {
     expect(SCALES[0].id).toBe('Ga');
-    expect(SCALES[SCALES.length - 1].id).toBe('ns');
+    expect(SCALES[SCALES.length - 1].id).toBe('ms');
   });
 
   it('step strictly decreases as index increases', () => {
@@ -244,18 +244,15 @@ describe('macro scales (Ga/Ma)', () => {
   });
 });
 
-describe('sub-second scales (ms/μs/ns) — decorative', () => {
-  for (const id of ['ms', 'us', 'ns'] as ScaleId[]) {
-    it(`${id} step > 0 but tiny`, () => {
-      const s = getScale(id);
-      expect(s.step).toBeGreaterThan(0);
-      expect(s.step).toBeLessThan(1e-3); // sub-millennium
-    });
+describe('ms scale — decorative sub-second', () => {
+  it('step > 0 but tiny', () => {
+    const s = getScale('ms');
+    expect(s.step).toBeGreaterThan(0);
+    expect(s.step).toBeLessThan(1e-3);
+  });
 
-    it(`${id} labels use relative ±N notation`, () => {
-      const items = getScale(id).build(2025, 11, 2025, 'fr-FR');
-      // Center item should be "+0 <unit>"
-      expect(items.some(i => i.isSelected && /^[+-]?0\s/.test(i.label))).toBe(true);
-    });
-  }
+  it('labels use relative ±N ms notation', () => {
+    const items = getScale('ms').build(2025, 11, 2025, 'fr-FR');
+    expect(items.some(i => i.isSelected && /^[+-]?0\s/.test(i.label))).toBe(true);
+  });
 });

@@ -1,15 +1,15 @@
 # @synapxlab/ladder-timeline
 
-> Carrousel temporel multi-échelles — glisser et zoomer sur 18 échelles,
-> du milliard d'années à la nanoseconde. Zéro dépendance runtime,
+> Carrousel temporel multi-échelles — glisser et zoomer sur 16 échelles,
+> du milliard d'années à la milliseconde. Zéro dépendance runtime,
 > TypeScript + SCSS.
 
 🇬🇧 [Read in English](./README.md)
 
 LadderTimeline est un composant d'axe temporel horizontal organisé en
-**échelle de 18 niveaux** (Ga, 100Ma, Ma, 100ka, 10ka, millénaire,
+**échelle de 16 niveaux** (Ga, 100Ma, Ma, 100ka, 10ka, millénaire,
 siècle, décennie, année, mois, semaine, jour, heure, minute, seconde,
-ms, µs, ns). `↑`/`↓` (ou `setScale(id)`) bascule vers une échelle plus
+ms). `↑`/`↓` (ou `setScale(id)`) bascule vers une échelle plus
 fine / plus grossière ; glisser navigue dans l'échelle courante.
 
 Conçu comme une brique de **ChronoMap** (timeline géospatiale) mais
@@ -31,7 +31,7 @@ const timeline = new LadderTimeline({
   container:   document.getElementById('timeline')!,
   scale:       'week',
   displayMode: 'expanded',         // ou 'compact'
-  minScale:    'us',               // unité la plus fine autorisée
+  minScale:    'ms',               // unité la plus fine autorisée
   maxScale:    'millennium',       // unité la plus grossière autorisée
   minDate:     new Date(1900, 0, 1),
   maxDate:     new Date(2100, 11, 31),
@@ -42,22 +42,22 @@ const timeline = new LadderTimeline({
 
 ## Fonctionnalités
 
-### 18 échelles (« l'échelle »)
+### 16 échelles (« l'échelle »)
 
 | Macro     | Calendaire        | Sub-jour       | Sub-seconde  |
 |-----------|-------------------|----------------|--------------|
 | Ga        | millénaire        | heure          | ms           |
-| 100Ma     | siècle            | minute         | µs           |
-| Ma        | décennie          | seconde        | ns           |
+| 100Ma     | siècle            | minute         |              |
+| Ma        | décennie          | seconde        |              |
 | 100ka     | année             |                |              |
 | 10ka      | mois              |                |              |
 |           | semaine           |                |              |
 |           | jour              |                |              |
 
 Le curseur est stocké en interne comme une **année décimale** (`number`),
-ce qui permet une navigation fluide à toutes les échelles. Les échelles
-sub-seconde sont décoratives (la précision float64 ne permet pas de
-timestamp absolu plus fin que ~1 ms).
+ce qui permet une navigation fluide à toutes les échelles. L'échelle `ms`
+est décorative (float64 ne supporte pas de timestamp absolu plus fin
+que ~1 ms — les labels sont relatifs `±N ms` autour du curseur).
 
 ### Deux modes d'affichage
 
@@ -77,7 +77,7 @@ timeline.setDisplayMode('compact');
 
 ```ts
 new LadderTimeline({
-  minYear, maxYear,   // année décimale (couvre toute la plage Ga→ns)
+  minYear, maxYear,   // année décimale (couvre toute la plage Ga→ms)
   minDate, maxDate,   // confort Date (converti en minYear/maxYear)
   minScale, maxScale, // clamp ScaleId sur setScale()
 });
