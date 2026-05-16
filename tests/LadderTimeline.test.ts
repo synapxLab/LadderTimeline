@@ -122,6 +122,18 @@ describe('Year bounds', () => {
     expect(t.getDate().getFullYear()).toBe(before);
   });
 
+  it('setDate hors bornes : résultat dans bornes ET sur frontière d\'échelle', () => {
+    const t = new LadderTimeline({
+      container, scale: 'decade',
+      minYear: 2015, maxYear: 2055,
+    });
+    t.setDate(new Date(2002, 0, 1));  // 2002 << 2015
+    const got = t.getDate().getFullYear();
+    expect(got).toBeGreaterThanOrEqual(2015);
+    expect(got).toBeLessThanOrEqual(2055);
+    expect(got % 10).toBe(0);  // doit être une frontière de décennie
+  });
+
   it('goToPrevious bloqué à la borne min', () => {
     const t = new LadderTimeline({
       container, scale: 'year',
@@ -208,6 +220,70 @@ describe('DisplayMode rendering', () => {
     const minor = container.querySelectorAll('.lt__item--minor');
     expect(major.length).toBe(0);
     expect(minor.length).toBe(0);
+  });
+});
+
+// ─── Markers ─────────────────────────────────────────────────────────────────
+
+describe('Markers', () => {
+  it('setMarkers / getMarkers roundtrip', () => {
+    const t = new LadderTimeline({ container });
+    t.setMarkers([
+      { year: 1789, label: 'Révolution' },
+      { year: 1815, label: 'Tambora', color: '#dc2626' },
+    ]);
+    const got = t.getMarkers();
+    expect(got).toHaveLength(2);
+    expect(got[0].label).toBe('Révolution');
+    expect(got[1].color).toBe('#dc2626');
+  });
+
+  it('addMarker ajoute, removeMarker(id) supprime', () => {
+    const t = new LadderTimeline({ container });
+    t.addMarker({ year: 2024, label: 'foo', id: 'a' });
+    t.addMarker({ year: 2025, label: 'bar', id: 'b' });
+    expect(t.getMarkers()).toHaveLength(2);
+    t.removeMarker('a');
+    expect(t.getMarkers()).toHaveLength(1);
+    expect(t.getMarkers()[0].id).toBe('b');
+  });
+
+  it('rend un .lt__marker dans l\'item correspondant', () => {
+    const t = new LadderTimeline({
+      container, scale: 'year',
+      minYear: 2020, maxYear: 2030,
+    });
+    t.setDate(new Date(2025, 0, 1));
+    t.setMarkers([{ year: 2024.5, label: 'mid-2024' }]);
+    const dots = container.querySelectorAll('.lt__marker');
+    expect(dots.length).toBeGreaterThan(0);
+  });
+
+  it('onMarkerClick fires au click', () => {
+    let clicked: string | null = null;
+    const t = new LadderTimeline({
+      container, scale: 'year',
+      onMarkerClick: m => { clicked = m.label; },
+    });
+    t.setDate(new Date(2025, 0, 1));
+    t.setMarkers([{ year: 2025.5, label: 'milieu' }]);
+    const dot = container.querySelector<HTMLElement>('.lt__marker');
+    expect(dot).not.toBeNull();
+    dot?.click();
+    expect(clicked).toBe('milieu');
+  });
+
+  it('markerclick CustomEvent émis sur le container', () => {
+    let detail: { year: number; label: string } | null = null;
+    const t = new LadderTimeline({ container, scale: 'year' });
+    container.addEventListener('markerclick', (e) => {
+      detail = (e as CustomEvent).detail;
+    });
+    t.setDate(new Date(2025, 0, 1));
+    t.setMarkers([{ year: 2025.5, label: 'evt' }]);
+    container.querySelector<HTMLElement>('.lt__marker')?.click();
+    expect(detail).not.toBeNull();
+    expect(detail!.label).toBe('evt');
   });
 });
 

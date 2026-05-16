@@ -74,6 +74,10 @@ export interface LadderTimelineOptions {
   onItemChange?: (info: TimelineItemInfo) => void;
   /** Fired live during drag/scroll for the centered item — toutes échelles */
   onItemPreview?: (info: TimelineItemInfo) => void;
+  /** Liste initiale de markers (dates clés) à poser sur la timeline */
+  markers?: TimelineMarker[];
+  /** Click sur un marker */
+  onMarkerClick?: (marker: TimelineMarker) => void;
   /**
    * Thème visuel.
    * - 'light' (défaut) : toujours clair
@@ -117,4 +121,17 @@ export interface TimelineItemInfo {
   header: string;
   /** Date équivalent si le year est dans la plage Date, sinon null */
   date: Date | null;
+}
+
+// ─── Markers / events ─────────────────────────────────────────────────────────
+
+export interface TimelineMarker {
+  /** Position en décimal year (ex: 1789.539 pour 14 juillet 1789) */
+  year: number;
+  /** Texte affiché en tooltip (et dans les payloads d'événement) */
+  label: string;
+  /** Couleur du marker. Défaut : couleur d'accent du thème. */
+  color?: string;
+  /** Identifiant optionnel — pour removeMarker() */
+  id?: string;
 }

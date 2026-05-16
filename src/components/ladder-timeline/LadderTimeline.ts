@@ -11,6 +11,7 @@ import type {
   LadderTimelineSelectEventDetail,
   CalendarAdapter,
   TimelineItemInfo,
+  TimelineMarker,
 } from './LadderTimeline.types';
 
 import {
@@ -76,6 +77,10 @@ export class LadderTimeline {
   private readonly onWeekPreviewCb: ((d: LadderTimelineSelectEventDetail) => void) | undefined;
   private readonly onItemChangeCb:  ((i: TimelineItemInfo) => void) | undefined;
   private readonly onItemPreviewCb: ((i: TimelineItemInfo) => void) | undefined;
+  private readonly onMarkerClickCb: ((m: TimelineMarker) => void) | undefined;
+
+  // Markers
+  private markers: TimelineMarker[] = [];
 
   // Dark mode auto
   private _darkMq: MediaQueryList | undefined;
@@ -146,6 +151,8 @@ export class LadderTimeline {
     this.onWeekPreviewCb = options.onWeekPreview;
     this.onItemChangeCb  = options.onItemChange;
     this.onItemPreviewCb = options.onItemPreview;
+    this.onMarkerClickCb = options.onMarkerClick;
+    if (options.markers) this.markers = options.markers.slice();
 
     // ── Bornes year ──────────────────────────────────────────────────────────
     this.minYear =
@@ -178,13 +185,13 @@ export class LadderTimeline {
       if (stored !== null) { this.selectedYear = stored; this.referenceYear = stored; }
     }
 
-    this.selectedYear  = this._clampYear(this.scale.snap(this.selectedYear));
-    this.referenceYear = this._clampYear(this.scale.snap(this.referenceYear));
+    this.selectedYear  = this._snapAndClamp(this.selectedYear);
+    this.referenceYear = this._snapAndClamp(this.referenceYear);
 
     // Si l'échelle initiale est calendaire et le year chargé est hors plage Date
     // (storage rempli depuis une échelle macro), retour aujourd'hui.
     if (this.scale.step < 1 && !inDateRange(this.selectedYear)) {
-      const t = this._clampYear(this.scale.snap(todayYear()));
+      const t = this._snapAndClamp(todayYear());
       this.selectedYear  = t;
       this.referenceYear = t;
     }
@@ -197,7 +204,7 @@ export class LadderTimeline {
   setDate(date: Date): void {
     if (!isValidDate(date)) return;
     const y = dateToYear(normalizeDate(date));
-    this.selectedYear  = this._clampYear(this.scale.snap(y));
+    this.selectedYear  = this._snapAndClamp(y);
     this.referenceYear = this.selectedYear;
     this._updateListDOM(false);
     this._emitItemChange(this.selectedYear);
@@ -208,7 +215,7 @@ export class LadderTimeline {
   }
 
   goToToday(): void {
-    const y = this._clampYear(this.scale.snap(todayYear()));
+    const y = this._snapAndClamp(todayYear());
     this.selectedYear  = y;
     this.referenceYear = y;
     this._updateListDOM(true);
@@ -241,11 +248,9 @@ export class LadderTimeline {
     const clampedId = this._clampScaleId(id);
     if (this.scale.id === clampedId) return;
     this.scale = getScale(clampedId);
-    let y = this.scale.snap(this.selectedYear);
-    if (this.scale.step < 1 && !inDateRange(y)) {
-      y = this.scale.snap(todayYear());
-    }
-    y = this._clampYear(y);
+    let y = this.selectedYear;
+    if (this.scale.step < 1 && !inDateRange(y)) y = todayYear();
+    y = this._snapAndClamp(y);
     this.selectedYear  = y;
     this.referenceYear = y;
     this._updateListDOM(false);
@@ -265,6 +270,30 @@ export class LadderTimeline {
 
   getDisplayMode(): 'expanded' | 'compact' { return this.displayMode; }
 
+  // ─── Markers ───────────────────────────────────────────────────────────────
+
+  /** Remplace tous les markers. */
+  setMarkers(markers: TimelineMarker[]): void {
+    this.markers = markers.slice();
+    this._renderItems();
+  }
+
+  /** Ajoute un marker (ne dédoublonne pas sur id — c'est à l'appelant). */
+  addMarker(marker: TimelineMarker): void {
+    this.markers.push(marker);
+    this._renderItems();
+  }
+
+  /** Supprime tous les markers ayant cet id. No-op si id absent ou inconnu. */
+  removeMarker(id: string): void {
+    const before = this.markers.length;
+    this.markers = this.markers.filter(m => m.id !== id);
+    if (this.markers.length !== before) this._renderItems();
+  }
+
+  /** Renvoie une copie de la liste courante. */
+  getMarkers(): TimelineMarker[] { return this.markers.slice(); }
+
   /** Renvoie les bornes effectives configurées sur cette instance. */
   getBounds(): { minYear: number; maxYear: number; minScale: ScaleId; maxScale: ScaleId } {
     const finest   = scaleAt(this.finestScaleIdx);
@@ -283,6 +312,25 @@ export class LadderTimeline {
     if (year < this.minYear) return this.minYear;
     if (year > this.maxYear) return this.maxYear;
     return year;
+  }
+
+  /**
+   * Snap puis clamp un year en garantissant qu'on reste sur une frontière
+   * d'échelle (sauf bornes pathologiques sans aucune frontière dans la plage).
+   * Cas géré : snap (souvent Math.floor) tombe juste sous minYear → on monte
+   * d'une unité d'échelle pour retomber dans les bornes.
+   */
+  private _snapAndClamp(year: number): number {
+    const snapped = this.scale.snap(this._clampYear(year));
+    if (snapped < this.minYear) {
+      const next = this.scale.add(snapped, 1);
+      if (next <= this.maxYear) return next;
+    }
+    if (snapped > this.maxYear) {
+      const prev = this.scale.add(snapped, -1);
+      if (prev >= this.minYear) return prev;
+    }
+    return this._clampYear(snapped);
   }
 
   private _clampScaleId(id: ScaleId): ScaleId {
@@ -439,10 +487,46 @@ export class LadderTimeline {
         li.appendChild(dot);
       }
 
+      // Markers : ceux dont year ∈ [item.year, item.year + step)
+      const itemMarkers = this._markersForItem(it.year);
+      if (itemMarkers.length > 0) {
+        const stack = document.createElement('span');
+        stack.className = 'lt__marker-stack';
+        stack.setAttribute('aria-hidden', 'true');
+        for (const m of itemMarkers) {
+          const dot = document.createElement('button');
+          dot.type = 'button';
+          dot.className = 'lt__marker';
+          if (m.color) dot.style.background = m.color;
+          dot.title = m.label;
+          dot.setAttribute('aria-label', m.label);
+          if (m.id) dot.setAttribute('data-marker-id', m.id);
+          dot.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            this._handleMarkerClick(m);
+          });
+          stack.appendChild(dot);
+        }
+        li.appendChild(stack);
+      }
+
       this.listEl.appendChild(li);
     }
 
     this._applyCarouselPadding(); // lit offsetWidth → reflow synchrone
+  }
+
+  /** Renvoie les markers dont year tombe dans [itemYear, itemYear + step). */
+  private _markersForItem(itemYear: number): TimelineMarker[] {
+    const end = itemYear + this.scale.step;
+    return this.markers.filter(m => m.year >= itemYear && m.year < end);
+  }
+
+  private _handleMarkerClick(marker: TimelineMarker): void {
+    this.onMarkerClickCb?.(marker);
+    this.container.dispatchEvent(new CustomEvent('markerclick', {
+      detail: marker, bubbles: true, composed: true,
+    }));
   }
 
   private _updateListDOM(animate: boolean): void {
@@ -1006,12 +1090,21 @@ export class LadderTimeline {
 
   // ─── Persistence ────────────────────────────────────────────────────────────
 
+  /**
+   * Format storage : `v1:{year}`. Toute autre forme (ancien format, version
+   * future inconnue) est ignorée silencieusement — permet de faire évoluer
+   * la sérialisation sans casser les sessions existantes.
+   */
+  private static readonly STORAGE_VERSION = 'v1';
+
   private _readStorage(): number | null {
     if (!this.storageKey) return null;
     try {
       const raw = localStorage.getItem(this.storageKey);
       if (!raw) return null;
-      const n = parseFloat(raw);
+      const prefix = `${LadderTimeline.STORAGE_VERSION}:`;
+      if (!raw.startsWith(prefix)) return null;  // version inconnue → skip
+      const n = parseFloat(raw.slice(prefix.length));
       return Number.isFinite(n) ? n : null;
     } catch {
       return null;
@@ -1021,7 +1114,7 @@ export class LadderTimeline {
   private _writeStorage(): void {
     if (!this.storageKey) return;
     try {
-      localStorage.setItem(this.storageKey, String(this.selectedYear));
+      localStorage.setItem(this.storageKey, `${LadderTimeline.STORAGE_VERSION}:${this.selectedYear}`);
     } catch {
       // quota dépassé ou mode privé
     }

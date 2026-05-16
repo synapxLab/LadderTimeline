@@ -37,11 +37,20 @@ document.addEventListener('DOMContentLoaded', () => {
     theme: 'auto',
     storageKey: 'lt-demo',
     // ── Démo : bornes ─────────────────────────────────────────────────────────
-    minScale: 'us',         // jusqu'à la microseconde
+    minScale: 'us',
     maxScale: 'millennium',
     minDate: new Date(1900, 0, 1),
     maxDate: new Date(2100, 11, 31),
-    displayMode: 'expanded',  // ou 'compact'
+    displayMode: 'expanded',
+    // ── Démo : markers ────────────────────────────────────────────────────────
+    markers: [
+      { id: 'covid',    year: 2020.214, label: 'Confinement COVID',   color: '#16a34a' },
+      { id: 'mun',      year: 1969.553, label: 'Apollo 11',           color: '#0ea5e9' },
+      { id: 'ww2',      year: 1945.342, label: 'Fin WW2',             color: '#dc2626' },
+      { id: 'inet',     year: 1989.221, label: 'Naissance du Web',    color: '#7c3aed' },
+      { id: 'fall',     year: 1989.847, label: 'Chute mur de Berlin', color: '#ea580c' },
+    ],
+    onMarkerClick: m => console.log('[marker]', m),
     onItemChange:  updateDisplay,
     onItemPreview: updateDisplay,
   });
@@ -51,9 +60,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('today-btn')?.addEventListener('click', () => {
     window.timelineA?.goToToday();
-  });
-  document.getElementById('sync-btn')?.addEventListener('click', () => {
-    window.timelineA?.setDate(new Date(2025, 0, 1));
   });
 
   // ─── Scale picker — pilote la timeline ──────────────────────────────────────
