@@ -85,6 +85,7 @@ export class LadderTimeline {
   private selectedYear: number;
   private referenceYear: number;
   private scale: Scale;
+  private displayMode: 'expanded' | 'compact';
 
   // Bornes (immutable après construction)
   private readonly minYear: number;
@@ -160,6 +161,7 @@ export class LadderTimeline {
     // ── Échelle initiale (clampée) ──────────────────────────────────────────
     const requestedScale = options.scale ?? DEFAULTS.scale;
     this.scale = getScale(this._clampScaleId(requestedScale));
+    this.displayMode = options.displayMode ?? 'expanded';
 
     const today = todayYear();
     this.selectedYear  = isValidDate(options.selectedDate)  ? dateToYear(normalizeDate(options.selectedDate))  : today;
@@ -246,6 +248,17 @@ export class LadderTimeline {
   }
 
   getScale(): ScaleId { return this.scale.id; }
+
+  setDisplayMode(mode: 'expanded' | 'compact'): void {
+    if (this.displayMode === mode) return;
+    this.displayMode = mode;
+    this._renderItems();
+    this._syncCenterMark();
+    const sel = this.listEl.querySelector<HTMLElement>('.lt__item--selected');
+    if (sel) { this._scrollToItem(sel, false); this._applyScaleEffect(); }
+  }
+
+  getDisplayMode(): 'expanded' | 'compact' { return this.displayMode; }
 
   /** Renvoie les bornes effectives configurées sur cette instance. */
   getBounds(): { minYear: number; maxYear: number; minScale: ScaleId; maxScale: ScaleId } {
@@ -352,6 +365,10 @@ export class LadderTimeline {
       this.referenceYear, CAROUSEL_WEEKS, this.selectedYear, this.locale,
     );
 
+    // Échelle plus grossière (pour détecter les items aux frontières)
+    const coarser = scaleAt(scaleIndex(this.scale.id) - 1);
+    const tol = this.scale.step * 0.5;
+
     this.listEl.innerHTML = '';
     let prevHeader = '__init__';
 
@@ -359,36 +376,45 @@ export class LadderTimeline {
       const isNewHeader = it.header !== '' && it.header !== prevHeader;
       prevHeader = it.header;
 
+      // Détection major : l'item est-il à la frontière de l'échelle supérieure ?
+      const isMajor = !coarser || Math.abs(coarser.snap(it.year) - it.year) < tol;
+      const isCompact = this.displayMode === 'compact';
+      const minimised = isCompact && !isMajor && !it.isSelected;
+
       const li = document.createElement('li');
       li.className =
         'lt__item' +
-        (it.isSelected ? ' lt__item--selected' : '') +
-        (it.isCurrent  ? ' lt__item--current'  : '');
+        (it.isSelected      ? ' lt__item--selected' : '') +
+        (it.isCurrent       ? ' lt__item--current'  : '') +
+        (isCompact          ? (isMajor ? ' lt__item--major' : ' lt__item--minor') : '');
       li.setAttribute('role', 'option');
       li.setAttribute('aria-selected', String(it.isSelected));
       li.setAttribute('tabindex', it.isSelected ? '0' : '-1');
       li.setAttribute('data-year', String(it.year));
 
-      // Header (équivalent ancien label de mois / année)
       li.setAttribute('data-month-text', it.header);
       li.setAttribute('data-orig-label', isNewHeader ? it.header : '');
 
       const monthEl = document.createElement('span');
       monthEl.className = 'lt__month-label';
       monthEl.setAttribute('aria-hidden', 'true');
-      if (it.isSelected) {
-        monthEl.textContent = it.header;
-      } else if (isNewHeader) {
-        monthEl.textContent = it.header;
+      if (!minimised) {
+        if (it.isSelected) {
+          monthEl.textContent = it.header;
+        } else if (isNewHeader) {
+          monthEl.textContent = it.header;
+        }
       }
 
       const lbl = document.createElement('span');
       lbl.className = 'lt__item-label';
-      lbl.textContent = it.label;
+      lbl.textContent = minimised ? it.compactLabel : it.label;
 
       const sub = document.createElement('span');
       sub.className = 'lt__item-sublabel';
-      sub.textContent = it.isCurrent && it.sublabel ? `${it.sublabel} · Auj.` : it.sublabel;
+      if (!minimised) {
+        sub.textContent = it.isCurrent && it.sublabel ? `${it.sublabel} · Auj.` : it.sublabel;
+      }
 
       li.append(monthEl, lbl, sub);
 

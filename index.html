@@ -106,6 +106,22 @@
       user-select: none;
     }
 
+    .display-mode {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1.5px solid #033249;
+      background: #fff;
+      color: #033249;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      user-select: none;
+    }
+    .display-mode input { accent-color: #033249; cursor: pointer; }
+
     @media (max-width: 480px) {
       body { padding: 20px 16px; }
     }
@@ -128,6 +144,11 @@
       <span class="scale-label" id="scale-label">Semaine</span>
       <button id="scale-down-btn" type="button" title="Dézoom (échelle plus large)" aria-label="Échelle plus large">▼</button>
     </div>
+
+    <label class="display-mode" title="Bascule l'affichage : étendu (tout) ↔ compact (frontières seules)">
+      <input type="checkbox" id="display-mode-toggle" />
+      <span>Compact</span>
+    </label>
   </div>
 
   <script type="module" src="/src/main.ts"></script>

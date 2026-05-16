@@ -30,6 +30,8 @@ export interface ScaleItem {
   sublabel: string;
   /** Header optionnel affiché sur l'item sélectionné ou aux transitions */
   header: string;
+  /** Label court pour le mode d'affichage `compact` (ex: "·10" pour 1810 à l'échelle décennie) */
+  compactLabel: string;
   /** Marqueur "aujourd'hui" (ou présent pour macro) */
   isCurrent: boolean;
   /** Marqueur "sélectionné" */
@@ -112,6 +114,7 @@ function macroScale(id: ScaleId, label: string, step: number): Scale {
           label:    fmtBigYear(y),
           sublabel: fmtBigYear(y + step) + ' →',
           header:   '',
+          compactLabel: fmtBigYear(y),
           isCurrent:  Math.abs(today - y) < step / 2,
           isSelected: Math.abs(this.snap(selectedYear) - y) < step / 2,
         });
@@ -147,11 +150,17 @@ function calendarYearBucketScale(id: ScaleId, label: string, step: number): Scal
         : step ===  100 ? 'siècle'
         : step ===   10 ? 'décennie'
         : '';
+        // compactLabel : derniers chiffres dans la "tranche" coarser
+        //   decade  (step=10)   → "10", "20", …, "90"
+        //   century (step=100)  → "100", "200", …, "900"
+        //   millennium (step=1000) → "1000", …, "9000"
+        const compact = String(((Math.abs(yi) % (step * 10)) | 0));
         items.push({
           year: y,
           label: lbl,
           sublabel: sub,
           header: '',
+          compactLabel: compact,
           isCurrent:  today >= y && today < y + step,
           isSelected: selectedYear >= y && selectedYear < y + step,
         });
@@ -182,6 +191,7 @@ const yearScale: Scale = {
         label: fmtYearShort(y),
         sublabel: isNewDecade ? `${y}s` : '',
         header: isNewDecade ? `${y}s` : '',
+        compactLabel: String(Math.abs(y) % 100),  // "0".."99"
         isCurrent:  Math.floor(today) === y,
         isSelected: Math.floor(selectedYear) === y,
       });
@@ -219,7 +229,7 @@ const monthScale: Scale = {
     for (let i = -half; i < count - half; i++) {
       if (!center) {
         const y = this.snap(centerYear) + i / 12;
-        items.push({ year: y, label: '—', sublabel: '', header: '', isCurrent: false, isSelected: false });
+        items.push({ year: y, label: '—', sublabel: '', header: '', compactLabel: '—', isCurrent: false, isSelected: false });
         continue;
       }
       const d = new Date(center.getFullYear(), center.getMonth() + i, 1);
@@ -233,6 +243,7 @@ const monthScale: Scale = {
         label:    isJan ? `${labelAbbr} ${d.getFullYear()}` : labelAbbr,
         sublabel: String(d.getFullYear()),
         header:   labelFull,
+        compactLabel: String(d.getMonth() + 1),  // 1..12
         isCurrent:  d.getTime() === todayM,
         isSelected: selM !== null && d.getTime() === selM,
       });
@@ -283,7 +294,7 @@ const weekScale: Scale = {
       // Hors plage Date — fallback approximatif
       for (let i = -half; i < count - half; i++) {
         const y = this.snap(centerYear) + i * ONE_WEEK_YEARS;
-        items.push({ year: y, label: '—', sublabel: '', header: '', isCurrent: false, isSelected: false });
+        items.push({ year: y, label: '—', sublabel: '', header: '', compactLabel: '—', isCurrent: false, isSelected: false });
       }
       return items;
     }
@@ -300,6 +311,7 @@ const weekScale: Scale = {
         label:    range,
         sublabel: `S${isoWeekNumber(start)} · ${start.getFullYear()}`,
         header:   monthName.charAt(0).toUpperCase() + monthName.slice(1),
+        compactLabel: String(start.getDate()),  // jour du début de semaine
         isCurrent:  start.getTime() === todayWeekStart,
         isSelected: selStart !== null && start.getTime() === selStart,
       });
@@ -339,7 +351,7 @@ const dayScale: Scale = {
 
     if (!inDateRange(centerYear)) {
       for (let i = -half; i < count - half; i++) {
-        items.push({ year: this.snap(centerYear) + i * ONE_DAY_YEARS, label: '—', sublabel: '', header: '', isCurrent: false, isSelected: false });
+        items.push({ year: this.snap(centerYear) + i * ONE_DAY_YEARS, label: '—', sublabel: '', header: '', compactLabel: '—', isCurrent: false, isSelected: false });
       }
       return items;
     }
@@ -353,6 +365,7 @@ const dayScale: Scale = {
         label:    `${wd.charAt(0).toUpperCase()}${wd.slice(1)} ${d.getDate()}`,
         sublabel: `${monthName.slice(0, 3)} ${d.getFullYear()}`,
         header:   monthName.charAt(0).toUpperCase() + monthName.slice(1),
+        compactLabel: String(d.getDate()),  // jour du mois
         isCurrent:  d.getTime() === todayKey,
         isSelected: selKey !== null && d.getTime() === selKey,
       });
@@ -365,7 +378,11 @@ const dayScale: Scale = {
 
 const MS_PER_YEAR = 365.25 * 24 * 3600 * 1000;
 
-function subDayScale(id: ScaleId, label: string, msPerStep: number, fmtFn: (d: Date) => string): Scale {
+function subDayScale(
+  id: ScaleId, label: string, msPerStep: number,
+  fmtFn: (d: Date) => string,
+  compactFn: (d: Date) => string,
+): Scale {
   const stepYears = msPerStep / MS_PER_YEAR;
   return {
     id, label, step: stepYears,
@@ -391,7 +408,7 @@ function subDayScale(id: ScaleId, label: string, msPerStep: number, fmtFn: (d: D
 
       if (!inDateRange(centerYear)) {
         for (let i = -half; i < count - half; i++) {
-          items.push({ year: this.snap(centerYear) + i * stepYears, label: '—', sublabel: '', header: '', isCurrent: false, isSelected: false });
+          items.push({ year: this.snap(centerYear) + i * stepYears, label: '—', sublabel: '', header: '', compactLabel: '—', isCurrent: false, isSelected: false });
         }
         return items;
       }
@@ -404,6 +421,7 @@ function subDayScale(id: ScaleId, label: string, msPerStep: number, fmtFn: (d: D
           label:    fmtFn(d),
           sublabel: fmtDay.format(d),
           header:   fmtFn(d),
+          compactLabel: compactFn(d),
           isCurrent:  ms === todayBucket,
           isSelected: selBucket !== null && ms === selBucket,
         });
@@ -414,11 +432,14 @@ function subDayScale(id: ScaleId, label: string, msPerStep: number, fmtFn: (d: D
 }
 
 const hourScale   = subDayScale('hour',   'Heure',   3600 * 1000,
-  d => `${String(d.getHours()).padStart(2,'0')}:00`);
+  d => `${String(d.getHours()).padStart(2,'0')}:00`,
+  d => String(d.getHours()));
 const minuteScale = subDayScale('minute', 'Minute',  60 * 1000,
-  d => `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`);
+  d => `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`,
+  d => `:${String(d.getMinutes()).padStart(2,'0')}`);
 const secondScale = subDayScale('second', 'Seconde', 1000,
-  d => `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`);
+  d => `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`,
+  d => `:${String(d.getSeconds()).padStart(2,'0')}`);
 
 // ─── Sub-second scales (ms / μs / ns) — décoratif ─────────────────────────────
 
@@ -439,6 +460,7 @@ function subSecondScale(id: ScaleId, label: string, unit: 'ms' | 'µs' | 'ns', d
           label:   `${i >= 0 ? '+' : ''}${i} ${unit}`,
           sublabel: '',
           header:  `Δ${unit}`,
+          compactLabel: `${i >= 0 ? '+' : ''}${i}`,
           isCurrent:  i === 0,
           isSelected: i === sel,
         });

@@ -41,6 +41,14 @@ export interface LadderTimelineOptions {
   /** Échelle temporelle initiale (default: 'week') */
   scale?: ScaleId;
   /**
+   * Mode d'affichage des items :
+   * - `'expanded'` (default) : label + sublabel sur tous les items.
+   * - `'compact'`            : seuls les items aux frontières de l'échelle
+   *   supérieure gardent l'affichage complet ; les autres sont minimisés
+   *   (juste un compactLabel).
+   */
+  displayMode?: 'expanded' | 'compact';
+  /**
    * Échelle la plus fine autorisée (unité la plus courte). Default: `'ns'`.
    * Ex: `minScale: 'day'` interdit hour/minute/second/ms/μs/ns.
    */

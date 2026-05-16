@@ -37,10 +37,11 @@ document.addEventListener('DOMContentLoaded', () => {
     theme: 'auto',
     storageKey: 'lt-demo',
     // ── Démo : bornes ─────────────────────────────────────────────────────────
-    minScale: 'day',       // pas de hour/minute/second/ms/μs/ns
-    maxScale: 'millennium', // pas de 10ka/100ka/Ma/100Ma/Ga
+    minScale: 'us',         // jusqu'à la microseconde
+    maxScale: 'millennium',
     minDate: new Date(1900, 0, 1),
     maxDate: new Date(2100, 11, 31),
+    displayMode: 'expanded',  // ou 'compact'
     onItemChange:  updateDisplay,
     onItemPreview: updateDisplay,
   });
@@ -105,6 +106,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   scaleUpBtn?.addEventListener('click',   scaleUp);
   scaleDownBtn?.addEventListener('click', scaleDown);
+
+  // ─── Display mode toggle (expanded ↔ compact) ──────────────────────────────
+  const displayModeToggle = document.getElementById('display-mode-toggle') as HTMLInputElement | null;
+  if (displayModeToggle) {
+    displayModeToggle.checked = timeline.getDisplayMode() === 'compact';
+    displayModeToggle.addEventListener('change', () => {
+      timeline.setDisplayMode(displayModeToggle.checked ? 'compact' : 'expanded');
+    });
+  }
 
   // ─── Clavier global : ←/→ déjà gérés par le composant (focus listWrapper). ─
   // ↑/↓ pilotent l'échelle. '+' / '-' en bonus.

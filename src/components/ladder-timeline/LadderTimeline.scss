@@ -192,6 +192,27 @@ $wt-transition:      200ms cubic-bezier(0.4, 0, 0.2, 1);
     .lt__item-sublabel { color: #fff; }
   }
 
+  // ── Mode compact ─────────────────────────────────────────────────────────
+  // Items intermédiaires (entre deux frontières d'échelle supérieure) : minimisés.
+  &--minor {
+    padding: 6px 6px 8px;
+    opacity: 0.55;
+
+    .lt__item-label {
+      font-size: 11px;
+      font-weight: 400;
+      letter-spacing: 0;
+      &::before { content: '·\00a0'; color: rgba(0,0,0,.35); }
+    }
+    .lt__month-label,
+    .lt__item-sublabel { display: none; }
+  }
+
+  // Items frontière (à la transition vers l'échelle supérieure) : emphasés.
+  &--major:not(.lt__item--selected) {
+    .lt__item-label { font-weight: 700; }
+  }
+
   // Focus clavier
   &:focus-visible {
     outline: 2px solid var(--wt-accent);
