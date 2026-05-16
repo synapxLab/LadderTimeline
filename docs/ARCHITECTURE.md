@@ -28,7 +28,8 @@
 15. [MVP en 9 étapes / 4 jalons](#15-mvp-en-9-étapes--4-jalons)
 16. [Exemple concret : 4 couches + 2 corrélations](#16-exemple-concret--4-couches--2-corrélations)
 17. [Moteur de scénarios pédagogiques](#17-moteur-de-scénarios-pédagogiques)
-18. [Quickstart local](#18-quickstart-local)
+18. [Déploiement & exposition publique](#18-déploiement--exposition-publique)
+19. [Quickstart local](#19-quickstart-local)
 
 ---
 
@@ -516,7 +517,7 @@ Lancement :
 sudo -u postgres psql -f db/bootstrap.sql
 ```
 
-Puis migrations + seed (cf. §18 Quickstart).
+Puis migrations + seed (cf. §19 Quickstart).
 
 ### 8.3 Fichier `server/.env.example`
 
@@ -1081,9 +1082,9 @@ Quatre jalons publics : **atlas**, **corrélations**, **scénarios**, **publique
 
 | Étape | Livrable | Durée |
 |---|---|---|
-| **10. Polish + perf** | Lazy-load des couches inactives, thumbnails Playwright pour la bibliothèque, accessibilité clavier complète, i18n FR/EN, tests fumée Playwright sur les 10 scénarios cibles. | 4-6 j |
+| **10. Polish + exposition** | Lazy-load des couches inactives, thumbnails Playwright pour la bibliothèque, accessibilité clavier complète, i18n FR/EN, tests fumée Playwright sur les 10 scénarios cibles. **Vhost Apache `chronomap.synapx.fr` + certbot** sur la box de dev (cf. §18). | 4-6 j |
 
-**Total : ~30 jours** pour passer de zéro à une **version publiquement présentable** avec 10 scénarios + 4 couches + moteur de corrélation + édition.
+**Total : ~30 jours** pour passer de zéro à une **version publiquement présentable à `https://chronomap.synapx.fr`** avec 10 scénarios + 4 couches + moteur de corrélation + édition.
 
 Chaque jalon est démontrable indépendamment :
 - v0.1 = "voilà un atlas temporel"
@@ -1581,15 +1582,231 @@ Un scénario est une **interprétation**. ChronoMap pose des garde-fous :
 
 ---
 
-## 18. Quickstart local
+## 18. Déploiement & exposition publique
 
-### 18.1 Prérequis
+### 18.1 Contrainte d'infra
+
+> Le serveur de **production Synapx** est dédié aux emails (postfix/dovecot, files d'attente, anti-spam). **Postgres n'y est pas installé et n'y sera pas installé** — pas question de mutualiser la pile mail avec une base SIG qui peut consommer plusieurs Go.
+>
+> ChronoMap est donc déployé sur la **box de dev** (baremetal Debian, IP `82.67.88.235`), qui héberge déjà `synapx.fr`, `adliss.fr`, `ws.synapx.fr` et une trentaine de vhosts (cf. `project_baremetal_infra` en mémoire). C'est la même machine qui sert la "prod" publique de ChronoMap — pas de second hop.
+
+### 18.2 Topologie
+
+```
+Internet  ──► 82.67.88.235:443 ──► Apache vhost chronomap.synapx.fr
+                                         │
+              ┌──────────────────────────┼────────────────────────────┐
+              ▼                          ▼                            ▼
+       DocumentRoot                  /api/*                     /.well-known/
+       apps/atlas/dist/         server/public/index.php         acme-challenge/
+       (SPA Vite buildée)       → PHP-FPM 8.3                   (certbot)
+                                       │
+                                       ▼
+                              PostgreSQL local
+                              127.0.0.1:5432 (chronomap)
+```
+
+Tout tourne dans **un seul process Apache** + **PHP-FPM** + **Postgres local**. Pas de Node en prod (le frontend est statique buildé par Vite, pas d'API JS).
+
+### 18.3 DNS
+
+Ajouter un A-record :
+
+| Nom | Type | Valeur |
+|---|---|---|
+| `chronomap.synapx.fr` | A | `82.67.88.235` |
+
+> Test propagation : `dig +short chronomap.synapx.fr @1.1.1.1`. Le résolveur LAN Synapx peut mettre 10-15 min à voir le record — pour bypass pendant la propagation, ajouter `82.67.88.235 chronomap.synapx.fr` dans `/etc/hosts`.
+
+### 18.4 Vhost Apache
+
+Pattern aligné sur les autres vhosts Synapx (HTTP → HTTPS 301, certbot webroot `/var/www/letsencrypt`, SSL via Let's Encrypt). Template versionné dans le repo : `server/apache/chronomap.synapx.fr.conf`.
+
+```apache
+# ─── HTTP : ACME challenge + redirect HTTPS ─────────────────────────────────
+<VirtualHost *:80>
+    ServerName chronomap.synapx.fr
+
+    Alias /.well-known/acme-challenge/ /var/www/letsencrypt/.well-known/acme-challenge/
+    <Directory /var/www/letsencrypt/.well-known/acme-challenge/>
+        Options None
+        AllowOverride None
+        Require all granted
+    </Directory>
+
+    RewriteEngine On
+    RewriteCond %{REQUEST_URI} !^/\.well-known/acme-challenge/
+    RewriteRule ^ https://chronomap.synapx.fr%{REQUEST_URI} [R=301,L]
+
+    ErrorLog  ${APACHE_LOG_DIR}/chronomap.synapx.fr-error.log
+    CustomLog ${APACHE_LOG_DIR}/chronomap.synapx.fr-access.log combined
+</VirtualHost>
+
+# ─── HTTPS : SPA + /api ─────────────────────────────────────────────────────
+<VirtualHost *:443>
+    ServerName chronomap.synapx.fr
+
+    SSLEngine on
+    SSLCertificateFile    /etc/letsencrypt/live/chronomap.synapx.fr/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/chronomap.synapx.fr/privkey.pem
+    Protocols h2 http/1.1
+
+    # SPA Vite buildée
+    DocumentRoot "/data/vhosts/@synapxlab/ChronoMap/apps/atlas/dist"
+
+    <Directory "/data/vhosts/@synapxlab/ChronoMap/apps/atlas/dist">
+        Options -Indexes +FollowSymLinks
+        AllowOverride None
+        Require all granted
+        DirectoryIndex index.html
+
+        # Fallback SPA — toute URL sans fichier matché → index.html
+        # (mais on laisse passer /api en amont via Alias plus haut)
+        RewriteEngine On
+        RewriteCond %{REQUEST_URI} !^/api(/|$)
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteRule ^ /index.html [L]
+
+        # Cache long pour les assets hashés Vite
+        <FilesMatch "\.(js|css|woff2?|png|jpg|jpeg|webp|svg)$">
+            Header set Cache-Control "public, max-age=31536000, immutable"
+        </FilesMatch>
+        # HTML jamais en cache (SPA)
+        <FilesMatch "\.(html)$">
+            Header set Cache-Control "no-cache"
+        </FilesMatch>
+    </Directory>
+
+    # API PHP — Alias prioritaire sur le fallback SPA
+    Alias "/api" "/data/vhosts/@synapxlab/ChronoMap/server/public"
+    <Directory "/data/vhosts/@synapxlab/ChronoMap/server/public">
+        Options -Indexes +FollowSymLinks
+        AllowOverride None
+        Require all granted
+        DirectoryIndex index.php
+
+        # Front controller — toute requête /api/* → index.php
+        RewriteEngine On
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteRule ^ index.php [QSA,L]
+
+        # PHP via PHP-FPM (socket Debian)
+        <FilesMatch \.php$>
+            SetHandler "proxy:unix:/run/php/php8.3-fpm.sock|fcgi://localhost"
+        </FilesMatch>
+
+        # Tuiles MVT — cache HTTP 5 min côté CDN/navigateur
+        <LocationMatch "^/api/tiles/">
+            Header set Cache-Control "public, max-age=300"
+        </LocationMatch>
+    </Directory>
+
+    # Sécurité de base
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    Header always set X-Content-Type-Options    "nosniff"
+    Header always set X-Frame-Options           "SAMEORIGIN"
+    Header always set Referrer-Policy           "strict-origin-when-cross-origin"
+
+    ErrorLog  ${APACHE_LOG_DIR}/chronomap.synapx.fr-error.log
+    CustomLog ${APACHE_LOG_DIR}/chronomap.synapx.fr-access.log combined
+</VirtualHost>
+```
+
+Modules requis (tous déjà activés sur la box) : `headers`, `rewrite`, `ssl`, `proxy_fcgi`, `http2`.
+
+### 18.5 Première mise en service
+
+```bash
+# 1. Builder le frontend statique
+cd /data/vhosts/@synapxlab/ChronoMap/apps/atlas
+npm install && npm run build              # → apps/atlas/dist/
+
+# 2. Déposer le vhost
+sudo cp server/apache/chronomap.synapx.fr.conf /etc/apache2/sites-available/
+sudo a2ensite chronomap.synapx.fr
+
+# 3. Vhost HTTP seul pour l'ACME challenge initial (pas encore de cert)
+#    → commenter temporairement le bloc <VirtualHost *:443> ou utiliser :
+sudo apache2ctl -t && sudo systemctl reload apache2
+
+# 4. Obtenir le cert (webroot, sans couper Apache)
+sudo certbot certonly --webroot \
+     -w /var/www/letsencrypt \
+     -d chronomap.synapx.fr \
+     --agree-tos --no-eff-email -m laurentstpriest@gmail.com
+
+# 5. Décommenter le bloc HTTPS et reload
+sudo apache2ctl -t && sudo systemctl reload apache2
+
+# 6. Vérifier
+curl -I https://chronomap.synapx.fr/           # 200 sur index.html
+curl     https://chronomap.synapx.fr/api/timeline/range   # JSON
+```
+
+Le renouvellement du cert est pris en charge par `certbot.timer` (déjà actif), pattern partagé avec les autres vhosts Synapx.
+
+### 18.6 Variables d'environnement de prod
+
+Le `server/.env` sur la box de dev :
+
+```ini
+APP_ENV=production
+APP_DEBUG=false
+
+DB_DSN="pgsql:host=127.0.0.1;port=5432;dbname=chronomap"
+DB_USER="chronomap"
+DB_PASS="<régénérer un mot de passe différent du local>"
+
+JWT_SECRET="<via keyring Synapx services.chronomap.jwt_secret>"
+JWT_ALG="HS256"
+
+CORS_ORIGINS="https://chronomap.synapx.fr"
+```
+
+> **Important** : régénérer un mot de passe Postgres distinct du `j!1BIq9/aoQYig54` documenté (qui reste strictement local sur les postes de dev). Pour la box de dev en prod publique, mettre le pass dans `.env` non versionné + envisager d'intégrer au keyring Synapx (cf. `project_baremetal_infra`).
+
+### 18.7 Mise à jour (déploiement continu)
+
+Pas de CI/CD pour démarrer — pull manuel suffit.
+
+```bash
+cd /data/vhosts/@synapxlab/ChronoMap
+git pull --ff-only
+cd apps/atlas && npm install && npm run build
+# si migrations Postgres en attente :
+for f in db/migrations/*.sql; do
+  PGPASSWORD="$(grep DB_PASS server/.env | cut -d'=' -f2 | tr -d '\"')" \
+    psql -h 127.0.0.1 -U chronomap -d chronomap -f "$f"
+done
+# PHP n'a pas besoin de rebuild ; reload Apache si vhost a changé :
+# sudo systemctl reload apache2
+```
+
+À automatiser plus tard (webhook GitHub → script `deploy.sh`) seulement quand le rythme de release le justifie. YAGNI tant que les push sont rares.
+
+### 18.8 Backup PostgreSQL
+
+```bash
+# Quotidien, retention 14 j — à mettre dans /etc/cron.d/chronomap-backup
+0 4 * * *  postgres  pg_dump -Fc chronomap > /var/backups/chronomap/$(date +\%Y-\%m-\%d).dump && \
+                     find /var/backups/chronomap/ -mtime +14 -delete
+```
+
+Restore : `pg_restore -d chronomap_test -c file.dump`.
+
+---
+
+## 19. Quickstart local
+
+### 19.1 Prérequis
 
 ```bash
 sudo apt install postgresql-15 postgresql-15-postgis-3 php8.3 php8.3-pgsql php8.3-curl composer nodejs npm
 ```
 
-### 18.2 Création de la base
+### 19.2 Création de la base
 
 ```bash
 cd /data/vhosts/@synapxlab/ChronoMap
@@ -1618,7 +1835,7 @@ PGPASSWORD='j!1BIq9/aoQYig54' psql -h 127.0.0.1 -U chronomap -d chronomap -c "
 "
 ```
 
-### 18.3 Backend PHP
+### 19.3 Backend PHP
 
 ```bash
 cp server/.env.example server/.env
@@ -1626,14 +1843,14 @@ cd server && composer install
 php -S 127.0.0.1:8088 -t public          # → http://127.0.0.1:8088/api/categories
 ```
 
-### 18.4 Frontend
+### 19.4 Frontend
 
 ```bash
 cd packages/core && npm install && npm run dev     # lib en watch
 cd apps/atlas    && npm install && npm run dev     # → http://localhost:5173
 ```
 
-### 18.5 Test fumée
+### 19.5 Test fumée
 
 | Action | Attendu |
 |---|---|
