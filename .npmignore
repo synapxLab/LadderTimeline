@@ -1,0 +1,17 @@
+# Source
+src/
+index.html
+
+# Config
+vite.config.ts
+vite.lib.config.ts
+tsconfig.json
+*.config.ts
+
+# Dev docs
+README.fr.md
+CHANGELOG.md
+
+# Misc
+.gitignore
+node_modules/

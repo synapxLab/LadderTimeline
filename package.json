@@ -1,0 +1,60 @@
+{
+  "name": "@synapxlab/chronomap",
+  "version": "0.0.1",
+  "description": "Geospatial timeline — synchronise a map and a temporal axis to visualise spatio-temporal data. Zero runtime dependency, TypeScript + SCSS.",
+  "type": "module",
+  "main":   "./dist/chrono-map.umd.cjs",
+  "module": "./dist/chrono-map.es.js",
+  "types":  "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import":  "./dist/chrono-map.es.js",
+      "require": "./dist/chrono-map.umd.cjs",
+      "types":   "./dist/index.d.ts"
+    },
+    "./style": "./dist/style.css"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "scripts": {
+    "dev":       "vite",
+    "build":     "vite build",
+    "build:lib": "tsc --noEmit && vite build --config vite.lib.config.ts && tsc --declaration --emitDeclarationOnly --outDir dist",
+    "preview":   "vite preview",
+    "tsc":       "tsc --noEmit"
+  },
+  "keywords": [
+    "map",
+    "timeline",
+    "chronomap",
+    "geospatial",
+    "spatio-temporal",
+    "leaflet",
+    "maplibre",
+    "typescript",
+    "zero-dependency"
+  ],
+  "author": "synapxLab",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/synapxLab/ChronoMap"
+  },
+  "bugs": {
+    "url": "https://github.com/synapxLab/ChronoMap/issues"
+  },
+  "homepage": "https://github.com/synapxLab/ChronoMap#readme",
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "sass":       "^1.77.0",
+    "typescript": "^5.4.5",
+    "vite":       "^5.2.0"
+  }
+}
