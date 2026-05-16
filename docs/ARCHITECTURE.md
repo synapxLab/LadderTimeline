@@ -1,7 +1,11 @@
 # ChronoMap — Architecture
 
 > Atlas temporel interactif multi-couches, de **-5 000 000 à aujourd'hui**, éditable, basé sur PostGIS + MapLibre + PHP.
-> **La feature qui change tout** : un moteur de corrélations qui rend visibles les liens entre couches (climat ↔ migrations, volcanisme ↔ refroidissement, sécheresse ↔ guerres…).
+>
+> **Trois moteurs** se superposent :
+> - un **moteur temporel** (curseur + échelles, du million d'années au jour),
+> - un **moteur de corrélations** qui rend visibles les liens entre couches (climat ↔ migrations, volcanisme ↔ refroidissement, sécheresse ↔ guerres…),
+> - un **moteur de scénarios pédagogiques** qui transforme l'atlas en plateforme de storytelling guidée (parcours scriptés, caméra animée, annotations synchronisées).
 
 ---
 
@@ -21,15 +25,16 @@
 12. [Le moteur de corrélations](#12-le-moteur-de-corrélations--la-feature-différenciante)
 13. [Édition + versioning](#13-édition--versioning)
 14. [Performances](#14-performances)
-15. [MVP en 7 étapes](#15-mvp-en-7-étapes)
+15. [MVP en 9 étapes / 4 jalons](#15-mvp-en-9-étapes--4-jalons)
 16. [Exemple concret : 4 couches + 2 corrélations](#16-exemple-concret--4-couches--2-corrélations)
-17. [Quickstart local](#17-quickstart-local)
+17. [Moteur de scénarios pédagogiques](#17-moteur-de-scénarios-pédagogiques)
+18. [Quickstart local](#18-quickstart-local)
 
 ---
 
 ## 1. Vision en une phrase
 
-> Une carte vectorielle MapLibre pilotée par un **moteur temporel logarithmique** qui interroge une base **PostGIS** via une API REST PHP, où **chaque entité géographique a une période de validité**, **les couches sont organisées en 10 grandes familles**, et **un moteur de corrélation** révèle les liens causaux et statistiques entre elles, le tout éditable depuis l'interface en mode admin.
+> Une carte vectorielle MapLibre pilotée par un **moteur temporel logarithmique** qui interroge une base **PostGIS** via une API REST PHP, où **chaque entité géographique a une période de validité**, **les couches sont organisées en 10 grandes familles**, **un moteur de corrélation** révèle les liens causaux et statistiques entre elles, et **un moteur de scénarios** rejoue des parcours pédagogiques scriptés (caméra, temps, couches, annotations synchronisés), le tout éditable depuis l'interface en mode admin.
 
 ---
 
@@ -52,41 +57,47 @@
 ## 3. Architecture globale
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                       FRONTEND (Vite SPA)                           │
-│  ┌──────────────────────────────────────────────────────────────┐   │
-│  │  ChronoMap (lib)                                             │   │
-│  │  ┌──────────┐ ┌──────────────┐ ┌──────────────┐ ┌─────────┐  │   │
-│  │  │TimeEngine│─│ LayerManager │─│CorrelationCore│─│MapAdapter│  │   │
-│  │  │ cursor   │ │ visibility   │ │ Pearson(corr)│ │MapLibre │  │   │
-│  │  │ scale    │ │ z-order      │ │ neighbours   │ │sources  │  │   │
-│  │  │ range    │ │ tree (10 fam)│ │ typed links  │ │layers   │  │   │
-│  │  └──────────┘ └──────────────┘ └──────────────┘ └─────────┘  │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│        │              │                │                 │          │
-│  ┌─────▼──────┐ ┌─────▼─────┐ ┌────────▼───────┐ ┌───────▼──────┐   │
-│  │ Timeline   │ │LayerPanel │ │ Correlation    │ │ Inspector /  │   │
-│  │ (bas)      │ │(10 fam,   │ │ panel  (bas)   │ │ Editor       │   │
-│  │            │ │ arbre)    │ │ uPlot + matrix │ │ (droite)     │   │
-│  └────────────┘ └───────────┘ └────────────────┘ └──────────────┘   │
-└────────────────────────────┬────────────────────────────────────────┘
-                             │ REST / MVT / corrélations
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          FRONTEND (Vite SPA)                            │
+│  ┌──────────────────────────────────────────────────────────────────┐   │
+│  │  ChronoMap (lib)                                                 │   │
+│  │  ┌──────────┐ ┌────────────┐ ┌──────────────┐ ┌──────────────┐  │   │
+│  │  │TimeEngine│─│LayerManager│─│CorrelationCore│─│ MapAdapter   │  │   │
+│  │  │ cursor   │ │ visibility │ │ Pearson      │ │ MapLibre     │  │   │
+│  │  │ scale    │ │ z-order    │ │ neighbours   │ │ sources/lyrs │  │   │
+│  │  │ range    │ │ tree 10 fam│ │ typed links  │ │ flyTo/arrows │  │   │
+│  │  └────┬─────┘ └─────┬──────┘ └──────┬───────┘ └───────┬──────┘  │   │
+│  │       └─────────────┴────── ScenarioEngine ───────────┘         │   │
+│  │              play/pause/seek · steps · annotations              │   │
+│  └──────────────────────────────────────────────────────────────────┘   │
+│       │            │            │              │            │           │
+│  ┌────▼─────┐ ┌────▼────┐ ┌─────▼──────┐ ┌─────▼─────┐ ┌────▼──────┐    │
+│  │ Timeline │ │LayerPnl │ │Correlation │ │ Scenario  │ │ Inspector/│    │
+│  │  (bas)   │ │(10 fam) │ │Panel (bas) │ │ Player +  │ │ Editor    │    │
+│  │          │ │  arbre  │ │uPlot+matrix│ │ Library + │ │ (droite)  │    │
+│  │          │ │         │ │            │ │ Author    │ │           │    │
+│  └──────────┘ └─────────┘ └────────────┘ └───────────┘ └───────────┘    │
+└────────────────────────────┬────────────────────────────────────────────┘
+                             │ REST / MVT / corrélations / scénarios
                              ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                  BACKEND PHP 8.3 (server/)                          │
-│  Router → Controllers → Repositories → PDO                          │
-│  /layers /features /tiles /correlations /links /import …            │
-└────────────────────────────┬────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                       BACKEND PHP 8.3 (server/)                         │
+│  Router → Controllers → Repositories → PDO                              │
+│  /layers /features /tiles /correlations /links /scenarios /import …     │
+└────────────────────────────┬────────────────────────────────────────────┘
                              ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│   PostgreSQL 15 + PostGIS 3.4                                       │
-│   layer_categories ── layers ── features (geom + t_start/t_end)     │
-│                                  ├─ feature_links  (corrélations)   │
-│                                  └─ feature_revisions  (audit)      │
-└─────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│   PostgreSQL 15 + PostGIS 3.4                                           │
+│   layer_categories ── layers ── features (geom + t_start/t_end)         │
+│                                   ├─ feature_links  (corrélations)      │
+│                                   └─ feature_revisions  (audit)         │
+│   scenarios ── scenario_steps  (storytelling)                           │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Flux type** : l'utilisateur déplace le curseur temporel → `TimeEngine` émet → `LayerManager` recharge les sources MVT → `CorrelationCore` recalcule les coefficients pour les couches actives → la carte + le panneau de corrélation se mettent à jour ensemble.
+**Flux type — mode atlas** : l'utilisateur déplace le curseur temporel → `TimeEngine` émet → `LayerManager` recharge les sources MVT → `CorrelationCore` recalcule les coefficients pour les couches actives → carte + panneau de corrélation se mettent à jour ensemble.
+
+**Flux type — mode scénario** : `ScenarioEngine.play()` boucle sur `requestAnimationFrame` → avance `TimeEngine.cursor` à `speed.yearsPerSec` → quand on dépasse `step[i+1].t`, applique caméra (`MapAdapter.flyTo`) + opacité couches + annotation → `CorrelationCore` recalcule en parallèle, le badge Pearson **évolue en direct** pendant la narration.
 
 ---
 
@@ -100,6 +111,7 @@ ChronoMap/
 │       │   ├── TimeEngine.ts          # moteur temporel pur
 │       │   ├── LayerManager.ts        # registre + z-order + arbre 10 familles
 │       │   ├── CorrelationCore.ts     # client du moteur de corrélation
+│       │   ├── ScenarioEngine.ts      # play/pause/seek + animation des chapitres
 │       │   ├── ChronoMap.ts           # orchestrateur
 │       │   ├── adapters/
 │       │   │   ├── MapAdapter.ts      # interface abstraite
@@ -120,11 +132,15 @@ ChronoMap/
 │       │   │   ├── TimelinePanel.ts        # timeline bas (multi-échelle)
 │       │   │   ├── LayerPanel.ts           # panneau gauche, arbre 10 familles
 │       │   │   ├── CorrelationPanel.ts     # panneau bas (séries + matrice)
+│       │   │   ├── ScenarioLibrary.ts      # bibliothèque de scénarios (modal)
+│       │   │   ├── ScenarioPlayer.ts       # barre de lecture (play/pause/scrub)
+│       │   │   ├── ScenarioOverlay.ts      # texte d'annotation surimposé
+│       │   │   ├── ScenarioAuthor.ts       # mode auteur (capture/reorder)
 │       │   │   ├── Inspector.ts            # panneau droit (lecture)
 │       │   │   ├── EditorPanel.ts          # panneau droit (édition)
 │       │   │   ├── LinksPanel.ts           # causes & conséquences typées
 │       │   │   ├── SearchBar.ts
-│       │   │   └── ShortcutBus.ts          # ← → + - espace E L C …
+│       │   │   └── ShortcutBus.ts          # ← → + - espace E L C N P A S …
 │       │   ├── api/Client.ts          # wrapper fetch typé
 │       │   └── styles/main.scss
 │       └── vite.config.ts
@@ -138,6 +154,7 @@ ChronoMap/
 │   │   │   ├── TilesController.php
 │   │   │   ├── CorrelationsController.php   # ← Pearson / matrice / voisinage
 │   │   │   ├── LinksController.php          # ← liens typés
+│   │   │   ├── ScenariosController.php      # ← CRUD scénarios + steps
 │   │   │   ├── TimelineController.php
 │   │   │   ├── SearchController.php
 │   │   │   └── ImportController.php
@@ -145,6 +162,7 @@ ChronoMap/
 │   │   ├── Service/
 │   │   │   ├── TileBuilder.php        # génère MVT
 │   │   │   ├── CorrelationEngine.php  # ← coeur statistique
+│   │   │   ├── ScenarioThumbnailer.php # ← Playwright headless → thumbnails
 │   │   │   ├── GeoJsonImporter.php
 │   │   │   └── TimeCodec.php
 │   │   ├── Db/Connection.php
@@ -164,7 +182,8 @@ ChronoMap/
 │   │   ├── 006_views.sql
 │   │   ├── 007_links.sql              # ← liens typés
 │   │   ├── 008_buckets.sql            # ← vue matérialisée pour corrélations
-│   │   └── 009_indexes.sql
+│   │   ├── 009_indexes.sql
+│   │   └── 010_scenarios.sql          # ← scenarios + scenario_steps
 │   ├── seed/
 │   │   ├── 01_categories.sql
 │   │   ├── 02_layers.sql
@@ -172,13 +191,18 @@ ChronoMap/
 │   │   ├── climates.sql
 │   │   ├── populations.sql
 │   │   ├── tectonics.sql
-│   │   └── known_links.sql            # ← Tambora→1816, sécheresse→Akkad, etc.
+│   │   ├── known_links.sql            # ← Tambora→1816, sécheresse→Akkad…
+│   │   └── scenarios/                 # un .sql par scénario (10 cibles)
+│   │       ├── volcanoes-and-climate.sql
+│   │       ├── civilizations-birth.sql
+│   │       └── …
 │   └── README.md
 │
 ├── docs/
 │   ├── ARCHITECTURE.md                # ← ce fichier
 │   ├── TIME-MODEL.md
 │   ├── CORRELATIONS.md                # ← détail du moteur, p-values, choix méthodo
+│   ├── SCENARIOS.md                   # ← guide d'écriture d'un scénario
 │   └── API.md
 │
 ├── package.json                       # workspaces: packages/*, apps/*
@@ -492,7 +516,7 @@ Lancement :
 sudo -u postgres psql -f db/bootstrap.sql
 ```
 
-Puis migrations + seed (cf. §17 Quickstart).
+Puis migrations + seed (cf. §18 Quickstart).
 
 ### 8.3 Fichier `server/.env.example`
 
@@ -1025,19 +1049,47 @@ L'import accepte un **mapping** de colonnes, stocké côté serveur comme templa
 
 ---
 
-## 15. MVP en 7 étapes
+## 15. MVP en 9 étapes / 4 jalons
 
-| Étape | Livrable | Durée idéale |
+Quatre jalons publics : **atlas**, **corrélations**, **scénarios**, **publique**. Chacun donne une démo présentable.
+
+### v0.1 — Atlas (≈ 12 jours)
+
+| Étape | Livrable | Durée |
 |---|---|---|
-| **1. Schéma + catégories + 1 couche** | Postgres+PostGIS up, 10 `layer_categories`, `layers` + `features` + seed `volcanoes` (~1500 entrées GVP). Endpoint `GET /api/layers/:slug/features`. | 1-2 j |
-| **2. ChronoMap + MapLibreAdapter + LayerPanel arbre** | Carte affiche les volcans, panneau gauche montre les 10 familles repliables avec toggle. | 2-3 j |
+| **1. Schéma + catégories + 1 couche** | PostGIS up, 10 `layer_categories`, `layers` + `features` + seed `volcanoes` (~1500 entrées GVP). Endpoint `GET /api/layers/:slug/features`. | 1-2 j |
+| **2. ChronoMap + MapLibreAdapter + LayerPanel arbre** | Carte affiche les volcans, panneau gauche montre les 10 familles repliables. | 2-3 j |
 | **3. TimeEngine + TimelinePanel** | Curseur, échelles, raccourcis ← → + -, refresh des sources avec `?t_start&t_end`. | 2 j |
-| **4. LayerManager + 3 couches phares** | Ajout `climates` (choropleth) et `populations` (heatmap) et `tectonics` (lines). Z-order auto, palette. | 2-3 j |
+| **4. LayerManager + 3 couches phares** | Ajout `climates` (choropleth), `populations` (heatmap), `tectonics` (lines). Z-order auto, palette. | 2-3 j |
 | **5. MVT pipeline** | Endpoint `/api/tiles/...mvt`, sources MapLibre en `type: 'vector'`. Test charge sur `populations`. | 2 j |
 | **6. Édition + audit** | Mode édition, draw, save, `feature_revisions`. Import GeoJSON. | 3 j |
-| **7. Moteur de corrélations** | `/api/correlations` Pearson + matrice, `feature_links` + `/api/features/:id/links`, `/api/features/:id/neighbours`, `CorrelationPanel` (pair view + matrix), seed `known_links.sql`. | **4-5 j** |
 
-**Total MVP : ~17-20 jours** — tu as alors un atlas qui fonctionne avec 4 couches, l'édition, **et le moteur de corrélation à 3 niveaux**.
+### v0.2 — Corrélations (≈ +5 jours)
+
+| Étape | Livrable | Durée |
+|---|---|---|
+| **7. Moteur de corrélations** | `/api/correlations` Pearson + matrice, `feature_links` + `/api/features/:id/links` + `neighbours`, `CorrelationPanel` (pair view + matrix), seed `known_links.sql`. | 4-5 j |
+
+### v0.3 — Scénarios pédagogiques (≈ +7 jours)
+
+| Étape | Livrable | Durée |
+|---|---|---|
+| **8. Moteur de scénarios — lecture** | Tables `scenarios` + `scenario_steps`, `ScenarioEngine`, `ScenarioPlayer` (play/pause/scrub/chapitres), URL `?scenario=...&autoplay=1`, seed des 2 scénarios phares (`volcanoes-and-climate`, `civilizations-birth`). | 4 j |
+| **9. Mode auteur** | `ScenarioAuthor` (capture chapitre depuis l'état courant, DnD reorder, édition d'annotations), endpoints CRUD scénarios + steps, duplicate/fork. | 3 j |
+
+### v0.4 — Publique (≈ +6 jours)
+
+| Étape | Livrable | Durée |
+|---|---|---|
+| **10. Polish + perf** | Lazy-load des couches inactives, thumbnails Playwright pour la bibliothèque, accessibilité clavier complète, i18n FR/EN, tests fumée Playwright sur les 10 scénarios cibles. | 4-6 j |
+
+**Total : ~30 jours** pour passer de zéro à une **version publiquement présentable** avec 10 scénarios + 4 couches + moteur de corrélation + édition.
+
+Chaque jalon est démontrable indépendamment :
+- v0.1 = "voilà un atlas temporel"
+- v0.2 = "voilà comment on découvre des corrélations"
+- v0.3 = "voilà comment un prof construit un cours interactif"
+- v0.4 = "voilà la plateforme publique"
 
 ---
 
@@ -1185,15 +1237,359 @@ Résultat à -1 000 ± 100 ans :
 
 ---
 
-## 17. Quickstart local
+## 17. Moteur de scénarios pédagogiques
 
-### 17.1 Prérequis
+> ChronoMap n'est pas qu'un atlas, c'est une **plateforme de storytelling**.
+> Un **scénario** est un parcours guidé à travers le temps et l'espace, scripté par un auteur (prof, vulgarisateur, chercheur) et rejoué par le moteur : la carte se déplace, le temps s'écoule, les couches se mettent en évidence au bon moment, et un texte s'affiche en surimpression.
+
+### 17.1 Anatomie d'un scénario
+
+Un scénario = une **séquence de "chapitres"** (steps). Chaque chapitre fige :
+
+- une **date** (`t`)
+- une **caméra** (centre, zoom, pitch/bearing optionnels)
+- un **état des couches** (visibles, mises en évidence, atténuées)
+- une **annotation** affichée en overlay
+- une **durée** d'arrêt sur image
+- une **transition** vers le chapitre suivant (`fly` / `fade` / `cut`)
+
+Entre deux chapitres, le moteur **interpole** : le temps progresse linéairement à `speed.yearsPerSec`, la caméra "vole" (MapLibre `flyTo`), les couches transitionnent en opacité.
+
+### 17.2 Format JSON (export / import / share)
+
+Auto-suffisant, versionnable, partageable par URL.
+
+```json
+{
+  "slug": "volcanoes-and-climate",
+  "title": "Volcans et climat — comment l'éruption du Tambora a changé le monde",
+  "description": "L'éruption de 1815 et son cortège de famines, migrations et révoltes.",
+  "author": "Atlas pédagogique",
+  "tags": ["climat", "volcanisme", "histoire-19e"],
+  "thumbnail": "/scenarios/volcanoes-and-climate.jpg",
+  "period": { "start": 1800, "end": 1830 },
+  "speed":  { "yearsPerSec": 0.5, "scale": "year" },
+  "default_layers": ["volcanoes", "climates", "populations", "wars"],
+  "steps": [
+    {
+      "t": 1810,
+      "duration_ms": 4000,
+      "camera": { "center": [117.85, -8.25], "zoom": 5 },
+      "layers": { "highlight": ["volcanoes"] },
+      "annotation": "Indonésie, 1810. Le mont Tambora dort depuis des siècles…",
+      "transition": "fly"
+    },
+    {
+      "t": 1815.246,
+      "duration_ms": 6000,
+      "camera": { "center": [117.85, -8.25], "zoom": 7, "pitch": 30 },
+      "layers": { "highlight": ["volcanoes"] },
+      "annotation": "10 avril 1815 : éruption VEI 7. 71 000 morts. Le plus grand événement volcanique du dernier millénaire.",
+      "transition": "cut"
+    },
+    {
+      "t": 1816,
+      "duration_ms": 5000,
+      "camera": { "center": [10, 50], "zoom": 3 },
+      "layers": { "highlight": ["climates"], "dim": ["volcanoes"] },
+      "annotation": "1816 — « année sans été ». L'Europe perd 1 °C. Récoltes ruinées en Angleterre, Allemagne, Suisse.",
+      "transition": "fly"
+    },
+    {
+      "t": 1817,
+      "duration_ms": 4000,
+      "camera": { "center": [10, 50], "zoom": 4 },
+      "layers": { "highlight": ["wars", "populations"] },
+      "annotation": "Famine, émeutes du pain, début des grandes migrations vers l'Amérique.",
+      "transition": "fly"
+    }
+  ]
+}
+```
+
+### 17.3 Les 10 scénarios pédagogiques cibles
+
+| # | Slug | Titre | Période | Couches activées | Objectif pédagogique |
+|---|---|---|---|---|---|
+| 1 | `civilizations-birth` | Naissance des civilisations | -10 000 → -1 000 | `climate`, `rivers`, `agriculture`, `populations`, `cities` | Pourquoi les civilisations naissent sur les fleuves fertiles |
+| 2 | `volcanoes-and-climate` | Volcans et climat | -2 000 → 2020 | `volcanoes`, `climates`, `populations`, `wars`, `agriculture` | Impact des grandes éruptions sur le climat et les sociétés |
+| 3 | `trade-routes-pandemics` | Routes commerciales & pandémies | -200 → 2020 | `trade_routes`, `cities`, `populations`, `pandemics` | Comment les échanges accélèrent les pandémies |
+| 4 | `plate-tectonics` | Tectonique des plaques | -5 000 000 → 2020 | `tectonics`, `volcanoes`, `earthquakes`, `mountains` | Dynamique géologique de la Terre |
+| 5 | `climate-migrations` | Climat et migrations humaines | -100 000 → 2020 | `biomes`, `deserts`, `populations`, `migrations` | Influence du climat sur les migrations |
+| 6 | `empires-expansion` | Expansion des empires | -1 000 → 1945 | `borders`, `armies`, `trade_routes`, `populations` | Croissance et chute des grands empires |
+| 7 | `sea-level-rise` | Montée des eaux depuis la dernière glaciation | -20 000 → 2020 | `sea_level`, `coastlines`, `migrations`, `habitable_zones` | Évolution géographique de la planète |
+| 8 | `industrial-revolution` | Révolution industrielle | 1700 → 1950 | `coal`, `industry`, `urbanization`, `pollution`, `populations` | Transformations du monde moderne |
+| 9 | `biodiversity-evolution` | Évolution de la biodiversité | -540 000 000 → 2020 | `species`, `extinctions`, `climate`, `deforestation` | Grandes évolutions du vivant |
+| 10 | `wwii-interactive` | Seconde Guerre mondiale interactive | 1939 → 1945 | `fronts`, `armies`, `bombings`, `industries`, `resources`, `populations` | Évolution spatiale complète d'un conflit mondial |
+
+### 17.4 Schéma SQL — scénarios
+
+```sql
+-- ─── 010_scenarios.sql ────────────────────────────────────────────────────
+CREATE TYPE scenario_status   AS ENUM ('draft','published','featured');
+CREATE TYPE step_transition_t AS ENUM ('fly','fade','cut');
+
+CREATE TABLE scenarios (
+  id              SERIAL PRIMARY KEY,
+  slug            TEXT NOT NULL UNIQUE,
+  title           TEXT NOT NULL,
+  description     TEXT,
+  author          TEXT,
+  tags            TEXT[] DEFAULT '{}',
+  thumbnail       TEXT,
+  period_start    NUMERIC(20,6) NOT NULL,
+  period_end      NUMERIC(20,6) NOT NULL,
+  default_layers  JSONB NOT NULL DEFAULT '[]',
+  speed           JSONB NOT NULL DEFAULT '{"yearsPerSec":1,"scale":"year"}',
+  status          scenario_status NOT NULL DEFAULT 'draft',
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK (period_end >= period_start)
+);
+
+CREATE TABLE scenario_steps (
+  id            BIGSERIAL PRIMARY KEY,
+  scenario_id   INT NOT NULL REFERENCES scenarios(id) ON DELETE CASCADE,
+  position      INT NOT NULL,                       -- ordre 0, 1, 2…
+  t             NUMERIC(20,6) NOT NULL,             -- date du chapitre
+  duration_ms   INT NOT NULL DEFAULT 4000,
+  camera        JSONB NOT NULL,                     -- { center:[lon,lat], zoom, pitch?, bearing? }
+  layers        JSONB NOT NULL DEFAULT '{}',        -- { highlight:[], dim:[], visible:[], hide:[] }
+  annotation    TEXT,
+  source_id     INT REFERENCES sources(id),         -- citation par chapitre
+  transition    step_transition_t NOT NULL DEFAULT 'fly',
+  UNIQUE (scenario_id, position)
+);
+
+CREATE INDEX scenarios_status_idx ON scenarios (status);
+CREATE INDEX scenarios_tags_gin   ON scenarios USING GIN (tags);
+CREATE INDEX scenario_steps_seq   ON scenario_steps (scenario_id, position);
+```
+
+### 17.5 Classe `ScenarioEngine`
+
+Pilote conjointement `TimeEngine`, `MapAdapter`, `LayerManager`. Tout est local au navigateur après le chargement initial.
+
+```ts
+export interface Scenario {
+  slug: string; title: string; description?: string;
+  period: { start: number; end: number };
+  speed:  { yearsPerSec: number; scale: Scale };
+  default_layers: string[];
+  steps:  ScenarioStep[];
+}
+
+export interface ScenarioStep {
+  t: number;
+  duration_ms: number;
+  camera:      { center: [number, number]; zoom: number; pitch?: number; bearing?: number };
+  layers?:     { highlight?: string[]; dim?: string[]; visible?: string[]; hide?: string[] };
+  annotation?: string;
+  transition:  'fly' | 'fade' | 'cut';
+}
+
+export class ScenarioEngine extends EventTarget {
+  private scenario: Scenario | null = null;
+  private stepIndex = 0;
+  private rafId    = 0;
+  private playing  = false;
+  private lastTs   = 0;
+
+  constructor(
+    private time:   TimeEngine,
+    private layers: LayerManager,
+    private map:    MapAdapter,
+  ) { super(); }
+
+  load(s: Scenario): void {
+    this.scenario  = s;
+    this.stepIndex = 0;
+    s.default_layers.forEach(slug => this.layers.setVisible(slug, true));
+    this.time.setCursor(s.period.start);
+    this.applyStep(s.steps[0]);
+    this.dispatchEvent(new CustomEvent('load', { detail: s }));
+  }
+
+  play(): void {
+    if (!this.scenario || this.playing) return;
+    this.playing = true;
+    this.lastTs  = performance.now();
+    this.tick();
+    this.dispatchEvent(new Event('play'));
+  }
+
+  pause(): void {
+    this.playing = false;
+    cancelAnimationFrame(this.rafId);
+    this.dispatchEvent(new Event('pause'));
+  }
+
+  seek(index: number): void {
+    if (!this.scenario) return;
+    this.stepIndex = Math.max(0, Math.min(index, this.scenario.steps.length - 1));
+    const step = this.scenario.steps[this.stepIndex];
+    this.time.setCursor(step.t);
+    this.applyStep(step);
+    this.dispatchEvent(new CustomEvent('step', { detail: { step, index: this.stepIndex } }));
+  }
+
+  next(): void { this.seek(this.stepIndex + 1); }
+  prev(): void { this.seek(this.stepIndex - 1); }
+
+  private tick = (): void => {
+    if (!this.playing || !this.scenario) return;
+    const now    = performance.now();
+    const dt     = (now - this.lastTs) / 1000;          // secondes réelles
+    this.lastTs  = now;
+    const dYears = dt * this.scenario.speed.yearsPerSec;
+    this.time.setCursor(this.time.cursor + dYears);
+
+    const next = this.scenario.steps[this.stepIndex + 1];
+    if (next && this.time.cursor >= next.t) {
+      this.stepIndex++;
+      this.applyStep(next);
+      this.dispatchEvent(new CustomEvent('step', { detail: { step: next, index: this.stepIndex } }));
+    }
+
+    if (this.time.cursor >= this.scenario.period.end) {
+      this.pause();
+      this.dispatchEvent(new Event('end'));
+      return;
+    }
+
+    this.rafId = requestAnimationFrame(this.tick);
+  };
+
+  private applyStep(step: ScenarioStep): void {
+    // Caméra
+    this.map.flyTo(step.camera, step.transition);
+    // Couches
+    const o = step.layers ?? {};
+    (o.highlight ?? []).forEach(s => this.layers.setOpacity(s, 1.0));
+    (o.dim       ?? []).forEach(s => this.layers.setOpacity(s, 0.25));
+    (o.visible   ?? []).forEach(s => this.layers.setVisible(s, true));
+    (o.hide      ?? []).forEach(s => this.layers.setVisible(s, false));
+  }
+}
+```
+
+### 17.6 UI — composants frontend
+
+```
+apps/atlas/src/ui/
+├── ScenarioLibrary.ts   # grille de scénarios disponibles + modal d'ouverture
+├── ScenarioPlayer.ts    # barre de lecture en bas (play/pause/scrub/chapitres)
+├── ScenarioOverlay.ts   # texte d'annotation surimposé sur la carte
+└── ScenarioAuthor.ts    # mode auteur : liste des steps, capture, reorder DnD
+```
+
+**`ScenarioPlayer`** (barre de lecture, bas d'écran) :
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  ▶ ⏸  ⏮ ⏭   ●○○○○○○○○○○   « 1816 — année sans été. L'Europe… »      │
+│              chapitres                annotation                      │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+**Raccourcis dédiés** :
+
+| Touche | Action |
+|---|---|
+| `Espace` | play / pause |
+| `N` / `P` | chapitre suivant / précédent |
+| `Échap` | sortir du mode lecture |
+| `A` | basculer en mode auteur (depuis un mode édition) |
+| `S` | ouvrir la bibliothèque de scénarios |
+
+### 17.7 Mode auteur (création d'un scénario)
+
+Workflow :
+
+1. Touche `E` (mode édition) + `A` (mode auteur).
+2. L'utilisateur déplace la carte, ajuste le temps, toggle des couches → arrive à l'**état voulu**.
+3. Bouton **« + Capturer comme chapitre »** : crée un step avec :
+   - `t = TimeEngine.cursor`
+   - `camera = MapAdapter.getCamera()`
+   - `layers.visible = LayerManager.active().slugs`
+   - `annotation = ''` (à remplir inline)
+4. Drag-and-drop pour réordonner les chapitres dans la barre latérale.
+5. Bouton **« Tester »** → bascule en mode lecture, prévisualise le scénario.
+6. **Enregistrer** → `PUT /api/scenarios/:slug`.
+
+Forking : un scénario publié peut être **dupliqué** (`POST /api/scenarios/:slug/duplicate`) pour démarrer une variante (autre angle pédagogique, autre période, autre langue) sans toucher à l'original.
+
+### 17.8 API — scénarios
+
+| Méthode | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/scenarios?status=published&tag=climat` | Liste filtrée |
+| `GET` | `/api/scenarios/:slug` | Document complet (metadata + steps) |
+| `POST` | `/api/scenarios` | Créer (metadata) |
+| `PUT` | `/api/scenarios/:slug` | Modifier |
+| `DELETE` | `/api/scenarios/:slug` | Supprimer (cascade steps) |
+| `POST` | `/api/scenarios/:slug/steps` | Ajouter un chapitre |
+| `PUT` | `/api/scenarios/:slug/steps/:position` | Modifier un chapitre |
+| `DELETE` | `/api/scenarios/:slug/steps/:position` | Retirer un chapitre |
+| `PATCH` | `/api/scenarios/:slug/reorder` | `{ from, to }` |
+| `POST` | `/api/scenarios/:slug/duplicate` | Cloner |
+| `GET` | `/api/scenarios/:slug/play.json` | Document optimisé runtime (geom inlined si besoin) |
+| `POST` | `/api/scenarios/:slug/thumbnail` | (admin) régénère le thumbnail via Playwright headless |
+
+### 17.9 URLs partageables
+
+Chaque scénario a une URL canonique, idéale pour les profs :
+
+```
+https://chronomap/?scenario=volcanoes-and-climate
+https://chronomap/?scenario=volcanoes-and-climate&step=2          # démarre au chapitre 2
+https://chronomap/?scenario=volcanoes-and-climate&autoplay=1
+https://chronomap/?scenario=volcanoes-and-climate&speed=2         # x2 sur yearsPerSec
+```
+
+Au boot, l'app lit `window.location.search`, charge le scénario, déclenche `play()` si `autoplay=1`. Pas d'auth nécessaire pour la lecture des scénarios `status='published'` ou `'featured'`.
+
+### 17.10 Croisement scénarios × corrélations
+
+Les deux moteurs travaillent ensemble :
+
+- Pendant la lecture d'un scénario, le **`CorrelationPanel`** continue d'afficher la matrice ou la pair view des couches actives **du chapitre courant**.
+- À chaque changement de chapitre, le coefficient se met à jour → l'élève **voit le Pearson évoluer en temps réel** quand le moteur traverse une période historique.
+- Exemple : dans `volcanoes-and-climate`, lorsque le moteur passe sur 1815→1817, la corrélation `volcanoes × climates` plonge à -0.7 puis remonte — **c'est l'illustration mathématique de l'événement raconté**.
+
+### 17.11 Performance & UX
+
+| Levier | Gain |
+|---|---|
+| **Player 100 % client** | Le scénario chargé une fois (~10-50 ko JSON), tout tourne en JS. Pas de RTT par chapitre. |
+| **Pré-chargement** des tuiles autour de `step.camera` au load | Pas de tile flash quand la caméra arrive. |
+| **`requestAnimationFrame`** pour l'animation temporelle | 60 fps natif, lié au repaint. |
+| **`step.transition: 'fly'`** = MapLibre `flyTo` natif | Pan + zoom + bearing animés ensemble, hardware-accelerated. |
+| **Ralentissement automatique** si `annotation.length > 150` | Le lecteur a le temps de lire. |
+| **`speed.yearsPerSec` adaptatif** : auto-baisse à 0.5 sur fenêtres < 100 ans, monte à 50+ sur fenêtres millénaires | Pas besoin de paramétrer 10 vitesses manuelles. |
+| **Thumbnail générée** côté serveur via Playwright headless | Aperçus statiques dans la bibliothèque. |
+
+### 17.12 Honnêteté scientifique & qualité
+
+Un scénario est une **interprétation**. ChronoMap pose des garde-fous :
+
+- Chaque chapitre **peut référencer une source** (`scenario_steps.source_id` → `sources`).
+- Badge **« vérifié par »** affichable si l'auteur est rattaché à une institution.
+- Les **corrélations statistiques** (niveau 3, cf. §12.3) ne sont **pas hard-codées** dans un scénario : elles se recalculent à chaque lecture sur la BD courante. Si quelqu'un corrige les données, le coefficient suit. Pas de "résultat figé" qui mentirait silencieusement.
+- Un scénario peut être **forké** (`duplicate`) : tu pars d'un existant, tu changes l'angle, c'est tracé. Pas de réécriture invisible.
+- Champ `status` : `draft` (privé), `published` (listé), `featured` (mis en avant éditorialement).
+
+---
+
+## 18. Quickstart local
+
+### 18.1 Prérequis
 
 ```bash
 sudo apt install postgresql-15 postgresql-15-postgis-3 php8.3 php8.3-pgsql php8.3-curl composer nodejs npm
 ```
 
-### 17.2 Création de la base
+### 18.2 Création de la base
 
 ```bash
 cd /data/vhosts/@synapxlab/ChronoMap
@@ -1222,7 +1618,7 @@ PGPASSWORD='j!1BIq9/aoQYig54' psql -h 127.0.0.1 -U chronomap -d chronomap -c "
 "
 ```
 
-### 17.3 Backend PHP
+### 18.3 Backend PHP
 
 ```bash
 cp server/.env.example server/.env
@@ -1230,23 +1626,26 @@ cd server && composer install
 php -S 127.0.0.1:8088 -t public          # → http://127.0.0.1:8088/api/categories
 ```
 
-### 17.4 Frontend
+### 18.4 Frontend
 
 ```bash
 cd packages/core && npm install && npm run dev     # lib en watch
 cd apps/atlas    && npm install && npm run dev     # → http://localhost:5173
 ```
 
-### 17.5 Test fumée
+### 18.5 Test fumée
 
 | Action | Attendu |
 |---|---|
 | `curl http://127.0.0.1:8088/api/categories` | 10 familles + leurs couches |
 | `curl 'http://127.0.0.1:8088/api/correlations?layers=volcanoes,climates&range=1500,2020&bucket=decade'` | `{ "pearson": -0.xx, "n_buckets": 52, "series": [...] }` |
 | `curl 'http://127.0.0.1:8088/api/features/<tambora>/links'` | Lien `caused_by → Année sans été 1816` |
-| Ouvrir `http://localhost:5173` | Carte + 10 familles repliables à gauche + matrice corrélation en bas |
+| `curl http://127.0.0.1:8088/api/scenarios?status=published` | Liste les 2 scénarios seed (`volcanoes-and-climate`, `civilizations-birth`) |
+| Ouvrir `http://localhost:5173` | Carte + 10 familles repliables + matrice corrélation en bas |
 | Touche `←` | Curseur recule, carte + corrélations rechargent |
 | Touche `C` | Toggle panneau corrélation |
+| Touche `S` | Ouvre la bibliothèque de scénarios |
+| Ouvrir `http://localhost:5173/?scenario=volcanoes-and-climate&autoplay=1` | Le scénario démarre seul, caméra vole vers le Tambora, annotations défilent, Pearson volcanoes×climates évolue en temps réel |
 
 ---
 
@@ -1256,6 +1655,7 @@ cd apps/atlas    && npm install && npm run dev     # → http://localhost:5173
 2. **`features` + JSONB** comme pivot, **vues SQL** pour le confort spécialisé.
 3. **`year` décimal** comme unique unité temporelle, des microsecondes humaines au million d'années.
 4. **MVT dynamique filtré par date** comme transport — clé de la perf.
-5. **Trois niveaux de corrélation** : voisinage spatio-temporel (auto), liens typés (curés), Pearson statistique sur séries temporelles. C'est le différenciateur du projet.
-6. **`TimeEngine` + `LayerManager` + `CorrelationCore` + `MapAdapter`** — quatre classes, c'est tout le cœur.
-7. **MVP en ~17-20 jours** sur 4 couches + édition + moteur de corrélation.
+5. **Trois niveaux de corrélation** : voisinage spatio-temporel (auto), liens typés (curés), Pearson statistique sur séries temporelles. Le différenciateur exploratoire.
+6. **Moteur de scénarios** : parcours guidés scriptés (chapitres avec caméra, couches, annotation, transition). Transforme l'atlas en plateforme de storytelling, partageable par URL. Le différenciateur pédagogique.
+7. **`TimeEngine` + `LayerManager` + `CorrelationCore` + `ScenarioEngine` + `MapAdapter`** — cinq classes, c'est tout le cœur.
+8. **MVP en 4 jalons / ~30 jours** : v0.1 atlas → v0.2 corrélations → v0.3 scénarios → v0.4 publique.
