@@ -1,15 +1,15 @@
 {
-  "name": "@synapxlab/chronomap",
+  "name": "@synapxlab/ladder-timeline",
   "version": "0.0.1",
-  "description": "Geospatial timeline — synchronise a map and a temporal axis to visualise spatio-temporal data. Zero runtime dependency, TypeScript + SCSS.",
+  "description": "Multi-scale temporal carousel — drag/zoom across 18 scales from billion-years to nanoseconds. Zero runtime dependency, TypeScript + SCSS.",
   "type": "module",
-  "main":   "./dist/chrono-map.umd.cjs",
-  "module": "./dist/chrono-map.es.js",
+  "main":   "./dist/ladder-timeline.umd.cjs",
+  "module": "./dist/ladder-timeline.es.js",
   "types":  "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import":  "./dist/chrono-map.es.js",
-      "require": "./dist/chrono-map.umd.cjs",
+      "import":  "./dist/ladder-timeline.es.js",
+      "require": "./dist/ladder-timeline.umd.cjs",
       "types":   "./dist/index.d.ts"
     },
     "./style": "./dist/style.css"
@@ -29,13 +29,14 @@
     "tsc":       "tsc --noEmit"
   },
   "keywords": [
-    "map",
     "timeline",
-    "chronomap",
-    "geospatial",
-    "spatio-temporal",
-    "leaflet",
-    "maplibre",
+    "carousel",
+    "scale",
+    "zoom",
+    "temporal",
+    "geological-time",
+    "logarithmic",
+    "drag",
     "typescript",
     "zero-dependency"
   ],
@@ -43,12 +44,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/synapxLab/ChronoMap"
+    "url": "https://github.com/synapxLab/LadderTimeline"
   },
   "bugs": {
-    "url": "https://github.com/synapxLab/ChronoMap/issues"
+    "url": "https://github.com/synapxLab/LadderTimeline/issues"
   },
-  "homepage": "https://github.com/synapxLab/ChronoMap#readme",
+  "homepage": "https://github.com/synapxLab/LadderTimeline#readme",
   "engines": {
     "node": ">=18"
   },

@@ -1,0 +1,305 @@
+// ─── Variables ─────────────────────────────────────────────────────────────────
+
+$wt-bg:              #ffffff;
+$wt-border:          #e8eaed;
+$wt-text-primary:    #1a1d23;
+$wt-text-secondary:  #6b7280;
+$wt-text-muted:      #9ca3af;
+
+$wt-accent:          #033249;
+$wt-accent-light:    #e0eaf0;
+$wt-accent-hover:    #022538;
+
+$wt-current-dot:     #10b981;
+$wt-hover-bg:        #f3f4f6;
+
+$wt-radius-pill:     999px;
+$wt-radius-card:     12px;
+$wt-shadow-sm:       0 1px 3px rgba(0, 0, 0, 0.08);
+
+$wt-transition:      200ms cubic-bezier(0.4, 0, 0.2, 1);
+
+// ─── CSS Custom Properties ─────────────────────────────────────────────────────
+
+:root {
+  --wt-accent:          #{$wt-accent};
+  --wt-accent-light:    #{$wt-accent-light};
+  --wt-accent-hover:    #{$wt-accent-hover};
+  --wt-bg:              #{$wt-bg};
+  --wt-border:          #{$wt-border};
+  --wt-text-primary:    #{$wt-text-primary};
+  --wt-text-secondary:  #{$wt-text-secondary};
+  --wt-text-muted:      #{$wt-text-muted};
+  --wt-hover-bg:        #{$wt-hover-bg};
+  --wt-current-dot:     #{$wt-current-dot};
+}
+
+// ─── Dark theme ────────────────────────────────────────────────────────────────
+
+.lt--dark,
+[data-theme='dark'] {
+  --wt-bg:             #0f1117;
+  --wt-border:         #2a2d36;
+  --wt-text-primary:   #f1f3f7;
+  --wt-text-secondary: #9ca3af;
+  --wt-text-muted:     #6b7280;
+  --wt-hover-bg:       #1c1f29;
+  --wt-accent-light:   #0a2233;
+}
+
+// ─── Root ─────────────────────────────────────────────────────────────────────
+
+.lt {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--wt-bg);
+  border: 1px solid var(--wt-border);
+  border-radius: $wt-radius-card;
+  padding: 12px 16px;
+  box-shadow: $wt-shadow-sm;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: var(--wt-text-primary);
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  &--compact { padding: 8px 12px; gap: 6px; }
+}
+
+// ─── Header ───────────────────────────────────────────────────────────────────
+
+.lt__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+// ─── List wrapper (carousel) ──────────────────────────────────────────────────
+
+.lt__list-wrapper {
+  position: relative;   // contexte pour center-mark et pseudo-éléments
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+
+  // ── Amélioration #2 : fondu latéral (vignette) ────────────────────────────
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 72px;
+    pointer-events: none;
+    z-index: 2;
+    transition: opacity $wt-transition;
+  }
+
+  &::before {
+    left: 0;
+    background: linear-gradient(to right, var(--wt-bg) 10%, transparent);
+  }
+
+  &::after {
+    right: 0;
+    background: linear-gradient(to left, var(--wt-bg) 10%, transparent);
+  }
+
+  &.is-dragging {
+    cursor: grabbing;
+
+    // Réduire le fondu pendant le drag pour mieux voir les items
+    &::before,
+    &::after { opacity: 0.6; }
+  }
+}
+
+// ─── Amélioration #2 : Repère central fixe ────────────────────────────────────
+
+.lt__center-mark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: $wt-radius-pill;
+  border: 1.5px solid var(--wt-accent);
+  opacity: 0.18;
+  pointer-events: none;
+  z-index: 1;
+  // width et height synchronisés depuis JS via _syncCenterMark()
+}
+
+// ─── Week list ────────────────────────────────────────────────────────────────
+
+.lt__list {
+  display: flex;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  // padding-left / padding-right : injectés par JS (_applyCarouselPadding)
+}
+
+// ─── Week item ────────────────────────────────────────────────────────────────
+
+.lt__item {
+  flex-shrink: 0;
+  position: relative;          // pour le dot en absolu si nécessaire
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 6px 14px 8px;       // top réduit car month-label occupe l'espace
+  border-radius: $wt-radius-pill;
+  border: 1.5px solid transparent;
+  cursor: inherit;
+
+  // ── Amélioration #3 : transitions scale + opacité (gérées par JS) ─────────
+  // On transite les couleurs via CSS, le scale/opacity via JS + rAF
+  transition:
+    background    $wt-transition,
+    border-color  $wt-transition,
+    color         $wt-transition,
+    box-shadow    $wt-transition;
+
+  // Désactiver les transitions scale/opacity pendant le drag (JS les gère directement)
+  .is-dragging & {
+    transition: none;
+  }
+
+  // Semaine courante (aujourd'hui)
+  &--current:not(.lt__item--selected) {
+    border-color: var(--wt-accent);
+    background: var(--wt-accent-light);
+
+    .lt__item-label   { color: var(--wt-accent); }
+    .lt__item-sublabel { color: var(--wt-accent); opacity: 0.75; }
+  }
+
+  // Semaine sélectionnée (toujours au centre)
+  &--selected {
+    background: var(--wt-accent);
+    border-color: var(--wt-accent-hover);
+    box-shadow: 0 2px 12px rgba(3, 50, 73, 0.30);
+
+    .lt__item-label,
+    .lt__item-sublabel { color: #fff; }
+  }
+
+  // Focus clavier
+  &:focus-visible {
+    outline: 2px solid var(--wt-accent);
+    outline-offset: 3px;
+  }
+
+  .lt--compact & { padding: 5px 10px; }
+}
+
+// ─── #6 : Étiquette de mois ───────────────────────────────────────────────────
+
+.lt__month-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: transparent;           // invisible si vide, occupe quand même la hauteur
+  white-space: nowrap;
+  pointer-events: none;
+  height: 11px;
+  line-height: 11px;
+
+  &:not(:empty) {
+    color: var(--wt-text-muted);
+  }
+
+  // ── Marqueur d'année ──────────────────────────────────────────────────────
+  &--year:not(:empty) {
+    color: var(--wt-accent);
+    font-weight: 800;
+    font-size: 8px;
+    letter-spacing: 0.12em;
+    opacity: 0.85;
+  }
+
+  .lt__item--selected &--year:not(:empty) {
+    color: rgba(255, 255, 255, 0.80);
+    opacity: 1;
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
+  .lt__item--selected &:not(:empty) {
+    color: rgba(255, 255, 255, 0.50);
+  }
+
+  .lt__item--current:not(.lt__item--selected) &:not(:empty) {
+    color: var(--wt-accent);
+    opacity: 0.65;
+  }
+}
+
+// ─── #5 : Point "aujourd'hui" ─────────────────────────────────────────────────
+
+.lt__item-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--wt-current-dot);
+  flex-shrink: 0;
+  margin-top: 2px;
+
+  .lt__item--selected & {
+    background: rgba(255, 255, 255, 0.75);
+  }
+}
+
+// ─── Labels ───────────────────────────────────────────────────────────────────
+
+.lt__item-label {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--wt-text-primary);
+  white-space: nowrap;
+  pointer-events: none;
+
+  .lt--compact & { font-size: 12px; }
+}
+
+.lt__item-sublabel {
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--wt-text-muted);
+  white-space: nowrap;
+  pointer-events: none;
+
+  .lt--compact & { font-size: 9px; }
+}
+
+// ─── Responsive ───────────────────────────────────────────────────────────────
+
+@media (max-width: 768px) {
+  .lt { padding: 10px 12px; }
+
+  .lt__item { padding: 7px 11px; }
+  .lt__item-label { font-size: 12px; }
+  .lt__item-sublabel { display: none; }
+
+  .lt__list-wrapper::before,
+  .lt__list-wrapper::after { width: 48px; }
+}
+
+@media (max-width: 480px) {
+  .lt { padding: 8px 10px; gap: 6px; border-radius: 10px; }
+  .lt__item { padding: 6px 10px; }
+  .lt__item-label { font-size: 11px; }
+
+  .lt__list-wrapper::before,
+  .lt__list-wrapper::after { width: 32px; }
+}

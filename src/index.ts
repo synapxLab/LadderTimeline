@@ -1,8 +1,25 @@
-import './components/chrono-map/ChronoMap.scss';
+// ─── Composant principal ──────────────────────────────────────────────────────
+export { LadderTimeline } from './components/ladder-timeline/LadderTimeline';
 
-export { ChronoMap } from './components/chrono-map/ChronoMap';
+// ─── Types publics ────────────────────────────────────────────────────────────
 export type {
-  ChronoMapOptions,
-  ChronoMapEventDetail,
-  TimePoint,
-} from './components/chrono-map/ChronoMap.types';
+  LadderTimelineOptions,
+  LadderTimelineSelectEventDetail,
+  LadderTimelineNavigateEventDetail,
+  WeekRange,
+  WeekItem,
+  CalendarAdapter,
+} from './components/ladder-timeline/LadderTimeline.types';
+
+// ─── Adapter FullCalendar ─────────────────────────────────────────────────────
+export {
+  createFullCalendarAdapter,
+  bindTimelineToCalendar,
+} from './adapters/FullCalendarAdapter';
+export type {
+  FullCalendarInstance,
+  BindableTimeline,
+} from './adapters/FullCalendarAdapter';
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+import './components/ladder-timeline/LadderTimeline.scss';

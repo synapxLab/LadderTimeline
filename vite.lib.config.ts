@@ -6,10 +6,10 @@ import { resolve } from 'path';
  * Usage : npm run build:lib
  *
  * Produit dans dist/ :
- *   chrono-map.es.js   — ESM  (import ... from '@synapxlab/chronomap')
- *   chrono-map.umd.cjs — UMD  (require / <script>)
- *   style.css          — CSS compilé à importer séparément
- *   *.d.ts             — Types TypeScript (générés par tsc)
+ *   ladder-timeline.es.js   — ESM  (import ... from '@synapxlab/ladder-timeline')
+ *   ladder-timeline.umd.cjs — UMD  (require / <script>)
+ *   style.css               — CSS compilé à importer séparément
+ *   *.d.ts                  — Types TypeScript (générés par tsc)
  */
 export default defineConfig({
   css: {
@@ -20,11 +20,11 @@ export default defineConfig({
   build: {
     lib: {
       entry:   resolve(__dirname, 'src/index.ts'),
-      name:    'ChronoMap',
+      name:    'LadderTimeline',
       formats: ['es', 'umd'],
       fileName: (format) => format === 'umd'
-        ? 'chrono-map.umd.cjs'
-        : `chrono-map.${format}.js`,
+        ? 'ladder-timeline.umd.cjs'
+        : `ladder-timeline.${format}.js`,
     },
     target:       'es2020',
     outDir:       'dist',
