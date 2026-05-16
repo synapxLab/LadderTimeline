@@ -98,6 +98,7 @@ export class LadderTimeline {
   private listWrapper!: HTMLElement;
   private listEl!: HTMLElement;
   private centerMark!: HTMLElement;
+  private liveRegion!: HTMLElement;
 
   // Drag
   private isDragging      = false;
@@ -120,6 +121,10 @@ export class LadderTimeline {
 
   // Spring snap
   private springRafId: number | undefined;
+
+  // Pinch (touch multi-fingers)
+  private _isPinching = false;
+  private _pinchInitialDist = 0;
 
   // Misc
   private cleanupFns: Array<() => void> = [];
@@ -298,6 +303,7 @@ export class LadderTimeline {
     this._bindDragEvents();
     this._bindWheelEvents();
     this._bindKeyboardEvents();
+    this._bindPinchEvents();
     this._updateListDOM(false);
     this._initResizeObserver();
   }
@@ -351,6 +357,14 @@ export class LadderTimeline {
     this.listWrapper.appendChild(this.listEl);
     header.appendChild(this.listWrapper);
     this.root.appendChild(header);
+
+    // ARIA live region — annonce le label de l'item courant aux lecteurs d'écran
+    this.liveRegion = document.createElement('div');
+    this.liveRegion.className = 'lt__live';
+    this.liveRegion.setAttribute('aria-live', 'polite');
+    this.liveRegion.setAttribute('aria-atomic', 'true');
+    this.root.appendChild(this.liveRegion);
+
     this.container.appendChild(this.root);
   }
 
@@ -688,6 +702,7 @@ export class LadderTimeline {
   private _bindDragEvents(): void {
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0 && e.pointerType === 'mouse') return;
+      if (this._isPinching) return;
       if (this.rafId     !== void 0) { cancelAnimationFrame(this.rafId);     this.rafId     = void 0; }
       if (this.springRafId !== void 0) { cancelAnimationFrame(this.springRafId); this.springRafId = void 0; }
 
@@ -830,6 +845,69 @@ export class LadderTimeline {
     this.cleanupFns.push(() => this.listWrapper.removeEventListener('keydown', onKeyDown));
   }
 
+  // ─── Pinch-to-zoom (touch) ───────────────────────────────────────────────────
+
+  private _bindPinchEvents(): void {
+    // Seuils : ratio > 1.3 → pinch out (zoom in) ; ratio < 0.77 → pinch in (zoom out)
+    const PINCH_OUT_RATIO = 1.3;
+    const PINCH_IN_RATIO  = 0.77;
+
+    const dist = (a: Touch, b: Touch): number =>
+      Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY);
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 2) return;
+      const a = e.touches[0], b = e.touches[1];
+      if (!a || !b) return;
+      this._isPinching = true;
+      this._pinchInitialDist = dist(a, b);
+      // Annuler tout drag en cours
+      this.isDragging = false;
+      this.listWrapper.classList.remove('is-dragging');
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!this._isPinching || e.touches.length !== 2) return;
+      e.preventDefault();
+      const a = e.touches[0], b = e.touches[1];
+      if (!a || !b || this._pinchInitialDist === 0) return;
+      const ratio = dist(a, b) / this._pinchInitialDist;
+      if (ratio > PINCH_OUT_RATIO) {
+        this._stepScale(1);   // pinch out = échelle plus fine
+        this._pinchInitialDist = dist(a, b); // reset pour le prochain step
+      } else if (ratio < PINCH_IN_RATIO) {
+        this._stepScale(-1);  // pinch in = échelle plus grossière
+        this._pinchInitialDist = dist(a, b);
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) {
+        this._isPinching = false;
+        this._pinchInitialDist = 0;
+      }
+    };
+
+    this.listWrapper.addEventListener('touchstart', onTouchStart, { passive: true });
+    this.listWrapper.addEventListener('touchmove',  onTouchMove,  { passive: false });
+    this.listWrapper.addEventListener('touchend',   onTouchEnd);
+    this.listWrapper.addEventListener('touchcancel',onTouchEnd);
+
+    this.cleanupFns.push(
+      () => this.listWrapper.removeEventListener('touchstart', onTouchStart),
+      () => this.listWrapper.removeEventListener('touchmove',  onTouchMove),
+      () => this.listWrapper.removeEventListener('touchend',   onTouchEnd),
+      () => this.listWrapper.removeEventListener('touchcancel',onTouchEnd),
+    );
+  }
+
+  /** Décale l'échelle de `delta` positions (+1 = plus fine, -1 = plus grossière). */
+  private _stepScale(delta: number): void {
+    const idx = scaleIndex(this.scale.id) + delta;
+    const next = scaleAt(idx);
+    if (next) this.setScale(next.id);  // setScale applique le clamp min/maxScale
+  }
+
   // ─── Selection ──────────────────────────────────────────────────────────────
 
   /** Construit un TimelineItemInfo pour un year donné, à l'échelle courante. */
@@ -848,9 +926,14 @@ export class LadderTimeline {
   }
 
   private _emitItemChange(year: number): void {
-    if (!this.onItemChangeCb) return;
     const info = this._buildItemInfo(year);
-    if (info) this.onItemChangeCb(info);
+    if (!info) return;
+    // ARIA : annonce l'item courant au lecteur d'écran
+    if (this.liveRegion) {
+      const parts = [info.label, info.sublabel].filter(s => s && s.trim().length > 0);
+      this.liveRegion.textContent = parts.join(', ');
+    }
+    this.onItemChangeCb?.(info);
   }
 
   private _emitItemPreview(year: number): void {

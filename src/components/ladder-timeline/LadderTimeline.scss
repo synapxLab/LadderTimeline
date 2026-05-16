@@ -324,3 +324,17 @@ $wt-transition:      200ms cubic-bezier(0.4, 0, 0.2, 1);
   .lt__list-wrapper::before,
   .lt__list-wrapper::after { width: 32px; }
 }
+
+// ─── ARIA live region (visuellement masqué, lu par les screen readers) ───────
+
+.lt__live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

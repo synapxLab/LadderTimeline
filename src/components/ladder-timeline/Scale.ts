@@ -65,7 +65,9 @@ function yearToDate(year: number): Date {
   const frac = year - y;
   const startOfY = new Date(y, 0, 1).getTime();
   const startOfNextY = new Date(y + 1, 0, 1).getTime();
-  return new Date(startOfY + frac * (startOfNextY - startOfY));
+  // Math.round évite la dérive sub-ms qui peut basculer sur le jour précédent
+  // après un roundtrip dateToYear → yearToDate.
+  return new Date(Math.round(startOfY + frac * (startOfNextY - startOfY)));
 }
 
 function dateToYear(d: Date): number {
