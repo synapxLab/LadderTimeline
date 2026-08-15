@@ -1,7 +1,7 @@
 {
   "name": "@synapxlab/ladder-timeline",
-  "version": "0.0.1",
-  "description": "Multi-scale temporal carousel — drag/zoom across 18 scales from billion-years to nanoseconds. Zero runtime dependency, TypeScript + SCSS.",
+  "version": "0.1.1",
+  "description": "Multi-scale temporal carousel — drag/zoom across 16 scales from billion-years to milliseconds. Markers, keyboard, pinch. Zero runtime dependency, TypeScript + SCSS.",
   "type": "module",
   "main": "./dist/ladder-timeline.umd.cjs",
   "module": "./dist/ladder-timeline.es.js",
@@ -16,7 +16,8 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "README.fr.md"
   ],
   "sideEffects": [
     "**/*.css"
